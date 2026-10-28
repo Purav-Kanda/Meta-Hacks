@@ -43,6 +43,7 @@ function makeCanvasTex(w: number, h: number): { cv: HTMLCanvasElement; g: Canvas
   cv.height = h;
   const g = cv.getContext('2d')!;
   const tex = new CanvasTexture(cv);
+  tex.anisotropy = 16; // three.js clamps to what the GPU supports; keeps tilted text crisp
   tex.colorSpace = SRGBColorSpace;
   return { cv, g, tex };
 }

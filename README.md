@@ -24,7 +24,7 @@ Debug helpers: add `?debug` to the URL for `window.__game`, and `?debug&view=top
 3. [x] Teacher patrol, pauses to glare at you, visible vision cone (yellow = calm, orange = you are in it)
 4. [x] Catching, angry rush, 3 warnings (temporary CHEAT test button on the desk until real cheats land)
 5. [x] Neighbor peek (head turn) (peek: look at a neighbor, press PEEK, HIDE dodges while she rushes)
-6. [ ] Phone
+6. [x] Phone (tap to raise, glow = evidence + longer teacher sight, ASK buffers 2-4 s, 20 s cooldown, confiscated on warning)
 7. [ ] Thrown fruit
 8. [ ] Fake email
 9. [ ] Easy / Not Easy modes

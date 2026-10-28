@@ -45,6 +45,7 @@ function canvasTex(w: number, h: number) {
   cv.height = h;
   const g = cv.getContext('2d')!;
   const tex = new CanvasTexture(cv);
+  tex.anisotropy = 16; // three.js clamps to what the GPU supports; keeps tilted text crisp
   tex.colorSpace = SRGBColorSpace;
   return { g, tex };
 }
@@ -125,7 +126,7 @@ export class PeekSystem extends createSystem({
     const h = canvasTex(330, 170);
     this.paintHide(h.g);
     h.tex.needsUpdate = true;
-    this.hideMesh = new Mesh(new PlaneGeometry(0.11, 0.057), new MeshBasicMaterial({ map: h.tex, transparent: true }));
+    this.hideMesh = new Mesh(new PlaneGeometry(0.17, 0.09), new MeshBasicMaterial({ map: h.tex, transparent: true }));
     this.hideMesh.position.set(HIDE_SPOTS[0][0], HIDE_SPOTS[0][1], 0.012);
     this.hideMesh.renderOrder = 6;
     const he = this.world.createTransformEntity(this.hideMesh, noteEntity);

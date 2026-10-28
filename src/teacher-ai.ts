@@ -11,6 +11,8 @@ export interface AIContext {
   playing: boolean;
   /** is any cheat currently out in the open */
   evidence: boolean;
+  /** multiplies her vision range (phone glow). Leave out for 1 */
+  rangeScale?: number;
 }
 
 /** reused every update, so the per-frame path allocates nothing */
@@ -84,7 +86,7 @@ export class TeacherAI {
           ctx.playing &&
           ctx.evidence &&
           this.immune <= 0 &&
-          inCone(this.x, this.z, this.yaw, ctx.headX, ctx.headZ, this.tuning.visionRange, this.tuning.visionHalfAngle)
+          inCone(this.x, this.z, this.yaw, ctx.headX, ctx.headZ, this.tuning.visionRange * (ctx.rangeScale ?? 1), this.tuning.visionHalfAngle)
         ) {
           this.startRush();
           ev.spotted = true;

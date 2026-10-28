@@ -46,6 +46,7 @@ function paintTexture(
   const g = cv.getContext('2d')!;
   paint(g, w, h);
   const tex = new CanvasTexture(cv);
+  tex.anisotropy = 16; // three.js clamps to what the GPU supports; keeps tilted text crisp
   tex.colorSpace = SRGBColorSpace;
   return tex;
 }
@@ -92,7 +93,7 @@ function makeWoodFloorTexture(): CanvasTexture {
   tex.wrapS = RepeatWrapping;
   tex.wrapT = RepeatWrapping;
   tex.repeat.set(8, 8);
-  tex.anisotropy = 8;
+  tex.anisotropy = 16;
   return tex;
 }
 

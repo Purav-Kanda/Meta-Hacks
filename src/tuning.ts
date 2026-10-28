@@ -17,6 +17,10 @@ export interface Tuning {
   peekAccuracy: number; // chance a neighbor's answer is the right one
   peekGlanceSeconds: number; // how long you must look at a neighbor before the PEEK bubble pops up
   hideDodgeSeconds: number; // while she rushes, the HIDE button jumps to a new spot this often
+  phoneBufferMin: number; // the phone buffers (lags) at least this long after you press ASK
+  phoneBufferMax: number; // ... and at most this long
+  phoneCooldown: number; // after it gives an answer it is useless for this long
+  phoneGlowScale: number; // while the phone is out her vision range is multiplied by this
 }
 
 export const EASY: Tuning = {
@@ -33,7 +37,11 @@ export const EASY: Tuning = {
   respotDelay: 1,
   peekAccuracy: 0.7,
   peekGlanceSeconds: 0.4,
-  hideDodgeSeconds: 0.6,
+  hideDodgeSeconds: 1.5,
+  phoneBufferMin: 2,
+  phoneBufferMax: 4,
+  phoneCooldown: 20,
+  phoneGlowScale: 1.4,
 };
 
 export const ACTIVE_TUNING: Tuning = EASY;

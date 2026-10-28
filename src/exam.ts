@@ -1,4 +1,4 @@
-import type { Question } from './questions.js';
+import { dealQuestions, type Question } from './questions.js';
 
 export type ExamPhase = 'ready' | 'playing' | 'done';
 export type ExamEnd = 'finished' | 'time' | 'caught';
@@ -25,6 +25,8 @@ export interface ExamRules {
   passMark: number;
   seconds: number;
   maxWarnings: number;
+  /** how many questions each attempt draws from the pool (default 10) */
+  questionCount?: number;
 }
 
 /**
@@ -41,12 +43,17 @@ export class ExamModel {
   /** picked option per question, -1 = unanswered */
   picks: number[];
 
+  /** the questions for the current attempt (dealt fresh from the pool on every start()) */
+  questions: Question[];
+
   constructor(
-    readonly questions: readonly Question[],
+    private readonly pool: readonly Question[],
     readonly rules: ExamRules,
+    private readonly rng: () => number = Math.random,
   ) {
+    this.questions = dealQuestions(pool, rules.questionCount ?? 10, rng);
     this.secondsLeft = rules.seconds;
-    this.picks = questions.map(() => -1);
+    this.picks = this.questions.map(() => -1);
   }
 
   start(): void {
@@ -56,7 +63,8 @@ export class ExamModel {
     this.evidence.clear();
     this.cursor = 0;
     this.secondsLeft = this.rules.seconds;
-    this.picks.fill(-1);
+    this.questions = dealQuestions(this.pool, this.rules.questionCount ?? 10, this.rng);
+    this.picks = this.questions.map(() => -1);
   }
 
   current(): Question {

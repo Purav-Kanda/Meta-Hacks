@@ -130,6 +130,7 @@ function buildExclaim(): Mesh {
   g.textBaseline = 'middle';
   g.fillText('!', 64, 70);
   const tex = new CanvasTexture(cv);
+  tex.anisotropy = 16; // three.js clamps to what the GPU supports; keeps tilted text crisp
   tex.colorSpace = SRGBColorSpace;
   const m = new Mesh(
     new PlaneGeometry(0.34, 0.34),
@@ -188,6 +189,10 @@ export class TeacherSystem extends createSystem({}) {
   private skin!: MeshStandardMaterial;
   private brows!: Group;
   private exclaim!: Mesh;
+  /** set by other systems (phone glow) to widen how far she sees; eased in the cone drawing */
+  rangeScale = 1;
+  private shownScale = 1;
+  private coneMesh!: Mesh;
   private coneMat!: MeshBasicMaterial;
   private rimMat!: LineBasicMaterial;
   private head = new Vector3();
@@ -208,6 +213,7 @@ export class TeacherSystem extends createSystem({}) {
     this.brows = parts.brows;
     this.root.add(this.body);
     const cone = buildCone(ACTIVE_TUNING.visionRange, ACTIVE_TUNING.visionHalfAngle);
+    this.coneMesh = cone;
     this.coneMat = cone.material as MeshBasicMaterial;
     this.rimMat = (cone.children[0] as LineLoop).material as LineBasicMaterial;
     this.root.add(cone);
@@ -231,6 +237,7 @@ export class TeacherSystem extends createSystem({}) {
       headZ: this.head.z,
       playing: exam.phase === 'playing',
       evidence: exam.evidence.active,
+      rangeScale: this.rangeScale,
     });
     if (events.warned) exam.addWarning();
 
@@ -249,10 +256,13 @@ export class TeacherSystem extends createSystem({}) {
       this.ai.yaw,
       this.head.x,
       this.head.z,
-      ACTIVE_TUNING.visionRange,
+      ACTIVE_TUNING.visionRange * this.rangeScale,
       ACTIVE_TUNING.visionHalfAngle,
     );
     this.seesPlayer = sees;
+    // ease the drawn cone toward the current range so the glow visibly stretches it
+    this.shownScale += (this.rangeScale - this.shownScale) * Math.min(1, dt * 6);
+    this.coneMesh.scale.set(this.shownScale, 1, this.shownScale);
     if (this.ai.mode !== this.shownMode || sees !== this.shownSees) {
       this.shownMode = this.ai.mode;
       this.shownSees = sees;

@@ -9,3 +9,8 @@ export const ExamButton = createComponent('ExamButton', {
 export const PeekButton = createComponent('PeekButton', {
   kind: { type: Types.Int8, default: 0 },
 });
+
+/** Phone UI buttons. kind: 0 = the phone lying on the desk (tap to raise), 1 = ASK, 2 = HIDE */
+export const PhoneButton = createComponent('PhoneButton', {
+  kind: { type: Types.Int8, default: 0 },
+});
