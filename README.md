@@ -13,15 +13,17 @@ npm run dev
 ```
 
 `npm run dev` opens a browser window with the Quest 3 emulator (IWER) already attached.
+Debug helpers: add `?debug` to the URL for `window.__game`, and `?debug&view=top` for an overhead camera (flat browser view only).
+
 `npm run typecheck` checks types, `npm run build` makes the `dist` folder for hosting.
 
 ## Build pieces
 
 1. [x] Project runs, classroom + desk + exam paper
-2. [ ] Answering with point and pinch
-3. [ ] Teacher patrol and vision cone
-4. [ ] Catching, angry rush, 3 warnings
-5. [ ] Neighbor peek (head turn)
+2. [x] Answering: exam sheet, A/B/C buttons (ray pinch or finger poke), timer, pass/fail
+3. [x] Teacher patrol, pauses to glare at you, visible vision cone (yellow = calm, orange = you are in it)
+4. [x] Catching, angry rush, 3 warnings (temporary CHEAT test button on the desk until real cheats land)
+5. [x] Neighbor peek (head turn) (peek: look at a neighbor, press PEEK, HIDE dodges while she rushes)
 6. [ ] Phone
 7. [ ] Thrown fruit
 8. [ ] Fake email

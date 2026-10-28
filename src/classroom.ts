@@ -7,8 +7,10 @@ import {
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
+  RepeatWrapping,
   SphereGeometry,
   SRGBColorSpace,
+  Entity,
   Vector3,
   VisibilityState,
   createSystem,
@@ -45,6 +47,52 @@ function paintTexture(
   paint(g, w, h);
   const tex = new CanvasTexture(cv);
   tex.colorSpace = SRGBColorSpace;
+  return tex;
+}
+
+
+// Wooden plank floor: a 1 m x 1 m tile (8 boards, staggered joints) repeated over the room.
+// Dark and warm on purpose so the yellow vision cone stands out against it.
+function makeWoodFloorTexture(): CanvasTexture {
+  const SIZE = 512;
+  const BOARDS = 8;
+  const palette = ['#9a6a3a', '#8a5c31', '#a2723f', '#7f5328', '#936235'];
+  let seed = 7;
+  const rnd = (): number => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  const tex = paintTexture(SIZE, SIZE, (g, w, h) => {
+    const bh = h / BOARDS;
+    for (let row = 0; row < BOARDS; row++) {
+      const y = row * bh;
+      const joint = Math.floor(rnd() * (w - 160)) + 80; // where this row's two boards meet
+      const segments: Array<[number, number]> = [
+        [0, joint],
+        [joint, w],
+      ];
+      for (const [x0, x1] of segments) {
+        g.fillStyle = palette[Math.floor(rnd() * palette.length)];
+        g.fillRect(x0, y, x1 - x0, bh);
+        // a few darker grain streaks
+        g.fillStyle = 'rgba(60, 30, 10, 0.18)';
+        for (let k = 0; k < 4; k++) {
+          const gy = y + 6 + rnd() * (bh - 12);
+          g.fillRect(x0 + rnd() * 30, gy, (x1 - x0) * (0.4 + rnd() * 0.6), 1.5);
+        }
+        // butt joint
+        g.fillStyle = 'rgba(40, 20, 8, 0.85)';
+        g.fillRect(x0, y, 2, bh);
+      }
+      // seam between rows
+      g.fillStyle = 'rgba(40, 20, 8, 0.85)';
+      g.fillRect(0, y, w, 2);
+    }
+  });
+  tex.wrapS = RepeatWrapping;
+  tex.wrapT = RepeatWrapping;
+  tex.repeat.set(8, 8);
+  tex.anisotropy = 8;
   return tex;
 }
 
@@ -124,6 +172,7 @@ function makeChair(): Group {
 const SEATED_EYE_Y = 1.1;
 
 export class ClassroomSystem extends createSystem({}) {
+  roomEntity!: Entity;
   private roomRoot!: Group;
   private headPos!: Vector3;
   private calibrated = false;
@@ -135,7 +184,10 @@ export class ClassroomSystem extends createSystem({}) {
     room.name = 'Classroom';
 
     // --- shell: 8m wide, 8m deep, 3m tall. Player sits near the back, facing -Z. ---
-    const floor = new Mesh(new PlaneGeometry(8, 8), flat(COL.floor));
+    const floor = new Mesh(
+      new PlaneGeometry(8, 8),
+      new MeshStandardMaterial({ map: makeWoodFloorTexture(), color: 0xc2b2a2, roughness: 0.85, metalness: 0 }),
+    );
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, 0, -2);
     room.add(floor);
@@ -214,15 +266,6 @@ export class ClassroomSystem extends createSystem({}) {
         g.fillRect(90, y - 10, 340, 3); // question placeholder line
       }
     });
-    const paper = new Mesh(
-      new PlaneGeometry(0.3, 0.42),
-      new MeshStandardMaterial({ map: paperTex, roughness: 0.9 }),
-    );
-    paper.name = 'ExamPaper';
-    paper.rotation.x = -Math.PI / 2 + 0.25;
-    paper.position.set(0, 0.78, -0.45);
-    room.add(paper);
-
     // pencil, because why not
     const pencil = new Mesh(
       new CylinderGeometry(0.006, 0.006, 0.18, 6),
@@ -230,7 +273,7 @@ export class ClassroomSystem extends createSystem({}) {
     );
     pencil.rotation.z = Math.PI / 2;
     pencil.rotation.y = 0.5;
-    pencil.position.set(0.25, 0.785, -0.5);
+    pencil.position.set(-0.4, 0.785, -0.4);
     room.add(pencil);
 
     // --- the neighbors: left one is the future "peek" target ---
@@ -279,7 +322,7 @@ export class ClassroomSystem extends createSystem({}) {
     tDesk.position.set(2.4, 0, -4.8);
     room.add(tDesk);
 
-    this.world.createTransformEntity(room);
+    this.roomEntity = this.world.createTransformEntity(room);
   }
 
   // Headsets report real head height (an emulator stands at ~1.6 m, a seated

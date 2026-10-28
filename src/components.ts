@@ -1,4 +1,4 @@
 import { defineComponents } from '@iwsdk/core';
+import { ExamButton, PeekButton } from './exam-components.js';
 
-// Game components get added here as pieces 2+ land.
-export default defineComponents([]);
+export default defineComponents([ExamButton, PeekButton]);
