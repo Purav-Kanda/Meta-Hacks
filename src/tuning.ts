@@ -21,6 +21,8 @@ export interface Tuning {
   phoneBufferMax: number; // ... and at most this long
   phoneCooldown: number; // after it gives an answer it is useless for this long
   phoneGlowScale: number; // while the phone is out her vision range is multiplied by this
+  fruitPerRound: number; // how many fruit you can throw per exam
+  distractSeconds: number; // how long a thrown fruit holds her attention once she reaches it
 }
 
 export const EASY: Tuning = {
@@ -42,6 +44,8 @@ export const EASY: Tuning = {
   phoneBufferMax: 4,
   phoneCooldown: 20,
   phoneGlowScale: 1.4,
+  fruitPerRound: 4,
+  distractSeconds: 4.5,
 };
 
 export const ACTIVE_TUNING: Tuning = EASY;

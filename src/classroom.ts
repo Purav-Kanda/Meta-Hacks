@@ -177,6 +177,8 @@ export class ClassroomSystem extends createSystem({}) {
   private roomRoot!: Group;
   private headPos!: Vector3;
   private calibrated = false;
+  private kids: Group[] = [];
+  private clock = 0;
 
   init(): void {
     this.headPos = new Vector3();
@@ -292,6 +294,7 @@ export class ClassroomSystem extends createSystem({}) {
       const kid = makeKid(shirt, skin, hair);
       kid.position.set(sx, 0.0, 0.15);
       room.add(kid);
+      this.kids.push(kid);
       const theirPaper = new Mesh(
         new PlaneGeometry(0.3, 0.42),
         new MeshStandardMaterial({ map: paperTex, roughness: 0.9 }),
@@ -315,6 +318,7 @@ export class ClassroomSystem extends createSystem({}) {
       // these kids sit with their backs to the player, facing the board
       kid.position.set(fx, 0, fz + 0.75);
       room.add(kid);
+      this.kids.push(kid);
     }
 
     // teacher's desk at the front, empty for now (teacher arrives in piece 3)
@@ -329,7 +333,16 @@ export class ClassroomSystem extends createSystem({}) {
   // Headsets report real head height (an emulator stands at ~1.6 m, a seated
   // player is ~1.2 m). Shift the room once per XR session so the player's eyes
   // always land at SEATED_EYE_Y relative to the kids and desks.
-  update(): void {
+  update(delta: number): void {
+    // classmates fidget: a slow breathing bob and a little sway, each on its own rhythm
+    this.clock += Math.min(delta, 0.1);
+    for (let i = 0; i < this.kids.length; i++) {
+      const kid = this.kids[i];
+      const ph = i * 1.7;
+      kid.position.y = Math.sin(this.clock * 1.8 + ph) * 0.006;
+      kid.rotation.z = Math.sin(this.clock * 0.9 + ph) * 0.025;
+      kid.rotation.y = Math.sin(this.clock * 0.55 + ph * 1.3) * 0.07;
+    }
     const immersive =
       this.world.visibilityState.peek() !== VisibilityState.NonImmersive;
     if (!immersive) {

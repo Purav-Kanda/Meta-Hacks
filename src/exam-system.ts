@@ -178,7 +178,7 @@ export class ExamSystem extends createSystem({
         new MeshStandardMaterial({ map: dbg.tex, roughness: 0.7 }),
       );
       this.debugMesh.rotation.x = -Math.PI / 2;
-      this.debugMesh.position.set(0.41, 0.782, -0.42);
+      this.debugMesh.position.set(0.4, 0.782, -0.2);
       const dEnt = this.world.createTransformEntity(this.debugMesh, classroom.roomEntity);
       dEnt.addComponent(ExamButton, { slot: 3 });
       dEnt.addComponent(RayInteractable);
@@ -242,7 +242,16 @@ export class ExamSystem extends createSystem({
     }
     if (this.bannerLeft > 0) {
       this.bannerLeft -= delta;
-      if (this.bannerLeft <= 0) this.bannerMesh.visible = false;
+      if (this.bannerLeft <= 0) {
+        this.bannerMesh.visible = false;
+      } else {
+        // bouncy pop-in with a little wobble, then shrink away at the end
+        const age = BANNER_SECONDS - this.bannerLeft;
+        const pop = age < 0.3 ? 1.2 * Math.sin((age / 0.3) * (Math.PI / 2)) : age < 0.45 ? 1.2 - 0.2 * ((age - 0.3) / 0.15) : 1;
+        const out = this.bannerLeft < 0.25 ? this.bannerLeft / 0.25 : 1;
+        this.bannerMesh.scale.setScalar(Math.max(0.01, pop * out));
+        this.bannerMesh.rotation.z = Math.sin(age * 28) * 0.06 * Math.max(0, 1 - age / 0.7);
+      }
     }
     if (this.debugMesh) {
       const on = this.exam.evidence.active;

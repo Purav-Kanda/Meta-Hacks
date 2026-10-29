@@ -13,6 +13,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
+  Quaternion,
   SphereGeometry,
   SRGBColorSpace,
   TorusGeometry,
@@ -25,6 +26,7 @@ import { PATROL } from './teacher-brain.js';
 import { TeacherAI } from './teacher-ai.js';
 import { ACTIVE_TUNING } from './tuning.js';
 import { inCone } from './vision.js';
+import { PuffPool } from './effects.js';
 
 const CONE_CALM = 0xffe066; // she has not spotted you
 const CONE_ALERT = 0xff9f1c; // you are inside her cone
@@ -112,12 +114,12 @@ function buildTeacherBody(): TeacherParts {
   return { body, skin, brows };
 }
 
-function buildExclaim(): Mesh {
+function buildExclaim(char = '!', color = '#d62839'): Mesh {
   const cv = document.createElement('canvas');
   cv.width = 128;
   cv.height = 128;
   const g = cv.getContext('2d')!;
-  g.fillStyle = '#d62839';
+  g.fillStyle = color;
   g.beginPath();
   g.arc(64, 64, 58, 0, Math.PI * 2);
   g.fill();
@@ -128,7 +130,7 @@ function buildExclaim(): Mesh {
   g.font = 'bold 92px "Comic Sans MS", sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText('!', 64, 70);
+  g.fillText(char, 64, 70);
   const tex = new CanvasTexture(cv);
   tex.anisotropy = 16; // three.js clamps to what the GPU supports; keeps tilted text crisp
   tex.colorSpace = SRGBColorSpace;
@@ -189,6 +191,12 @@ export class TeacherSystem extends createSystem({}) {
   private skin!: MeshStandardMaterial;
   private brows!: Group;
   private exclaim!: Mesh;
+  private question!: Mesh;
+  /** dust/smoke puffs (her charge, landing fruit); other systems may emit into it */
+  puffs!: PuffPool;
+  private puffTimer = 0;
+  private wasRush = false;
+  private camQ = new Quaternion();
   /** set by other systems (phone glow) to widen how far she sees; eased in the cone drawing */
   rangeScale = 1;
   private shownScale = 1;
@@ -219,10 +227,14 @@ export class TeacherSystem extends createSystem({}) {
     this.root.add(cone);
     this.exclaim = buildExclaim();
     this.root.add(this.exclaim);
+    this.question = buildExclaim('?', '#3a86ff');
+    this.root.add(this.question);
 
     this.root.position.set(this.ai.x, 0, this.ai.z);
     this.root.rotation.y = this.ai.yaw;
     this.world.createTransformEntity(this.root, classroom.roomEntity);
+    // puffs live in room space (not under her) so they stay behind when she moves
+    this.puffs = new PuffPool(classroom.roomEntity.object3D!, 32);
   }
 
   update(delta: number): void {
@@ -269,6 +281,29 @@ export class TeacherSystem extends createSystem({}) {
       this.applyLook(this.ai.mode, sees);
     }
     if (this.exclaim.visible) this.exclaim.lookAt(this.head); // "!" always faces the player
+    if (this.question.visible) this.question.lookAt(this.head);
+
+    // charging: kick up smoke behind her feet, like a car pulling away
+    if (this.ai.mode === 'rush' && this.ai.walking) {
+      this.puffTimer -= dt;
+      if (this.puffTimer <= 0) {
+        this.puffTimer = 0.06;
+        const fx = -Math.sin(this.ai.yaw);
+        const fz = -Math.cos(this.ai.yaw);
+        this.puffs.emit(
+          this.ai.x - fx * 0.14 + (Math.random() - 0.5) * 0.1,
+          0.06,
+          this.ai.z - fz * 0.14 + (Math.random() - 0.5) * 0.1,
+          0.2,
+          0.9,
+          -fx * 0.35,
+          -fz * 0.35,
+          0.3,
+        );
+      }
+    }
+    this.world.camera.getWorldQuaternion(this.camQ);
+    this.puffs.update(dt, this.camQ);
   }
 
   private applyLook(mode: string, sees: boolean): void {
@@ -277,6 +312,9 @@ export class TeacherSystem extends createSystem({}) {
     this.skin.color.setHex(angry ? SKIN_ANGRY : glare ? SKIN_GLARE : SKIN_NORMAL);
     this.brows.visible = angry || glare;
     this.exclaim.visible = angry;
+    this.question.visible = mode === 'distracted';
+    if (mode === 'rush' && !this.wasRush) this.puffs.burst(this.ai.x, this.ai.z, 9, 0.2, 0.9); // the "screech" at the start of a charge
+    this.wasRush = mode === 'rush';
     const cone = angry ? CONE_ANGRY : glare || sees ? CONE_ALERT : CONE_CALM;
     this.coneMat.color.setHex(cone);
     this.coneMat.opacity = angry ? 0.5 : sees || glare ? 0.45 : 0.38;

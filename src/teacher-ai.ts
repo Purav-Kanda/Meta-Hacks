@@ -2,7 +2,7 @@ import { PatrolBrain, PATROL, type Waypoint } from './teacher-brain.js';
 import type { Tuning } from './tuning.js';
 import { inCone, wrapAngle, yawToward } from './vision.js';
 
-export type TeacherMode = 'patrol' | 'rush' | 'glare' | 'lecture';
+export type TeacherMode = 'patrol' | 'rush' | 'glare' | 'lecture' | 'distracted';
 
 export interface AIContext {
   headX: number;
@@ -47,6 +47,8 @@ export class TeacherAI {
   private side = 1;
   private timer = 0;
   private immune = 0;
+  private moving = false;
+  private look: [number, number] = [0, 0];
 
   constructor(
     route: readonly Waypoint[] = PATROL,
@@ -65,11 +67,32 @@ export class TeacherAI {
     return this.patrol.yaw;
   }
   get walking(): boolean {
-    return this.mode === 'rush' ? this.rushing : this.mode === 'patrol' ? this.patrol.walking : false;
+    if (this.mode === 'rush') return this.rushing;
+    if (this.mode === 'distracted') return this.moving;
+    return this.mode === 'patrol' ? this.patrol.walking : false;
   }
   /** true while she is in angry mode (red, with the "!") */
   get angry(): boolean {
-    return this.mode !== 'patrol';
+    return this.mode === 'rush' || this.mode === 'glare' || this.mode === 'lecture';
+  }
+
+  /**
+   * A thrown fruit landed: walk (by the aisles) to the stand point, stare at the fruit for a while,
+   * then go back to patrol. Only works while she is calmly patrolling. While she is distracted she
+   * cannot spot anything.
+   */
+  distract(standX: number, standZ: number, lookX: number, lookZ: number): boolean {
+    if (this.mode !== 'patrol') return false;
+    this.path.length = 0;
+    // inside the desk rows she first goes up her aisle to the open front area
+    if (this.z > FRONT_ZONE_Z) this.path.push([this.x, AISLE_TOP_Z]);
+    this.path.push([standX, standZ]);
+    this.look[0] = lookX;
+    this.look[1] = lookZ;
+    this.patrol.walking = false;
+    this.moving = false;
+    this.mode = 'distracted';
+    return true;
   }
 
   update(dt: number, ctx: AIContext): AIEvents {
@@ -95,12 +118,50 @@ export class TeacherAI {
       case 'rush':
         this.stepRush(dt, ctx, ev);
         break;
+      case 'distracted':
+        this.stepDistracted(dt);
+        break;
       default: // glare / lecture: stand and stare at the player's head
         this.turnTo(yawToward(this.x, this.z, ctx.headX, ctx.headZ), dt);
         this.timer -= dt;
         if (this.timer <= 0) this.resume();
     }
     return ev;
+  }
+
+  private stepDistracted(dt: number): void {
+    const turnRate = this.tuning.teacherTurnRate * 2;
+    if (this.path.length > 0) {
+      const goal = this.path[0];
+      const dx = goal[0] - this.x;
+      const dz = goal[1] - this.z;
+      const dist = Math.hypot(dx, dz);
+      const step = this.tuning.teacherSpeed * 1.5 * dt;
+      const wanted = yawToward(this.x, this.z, goal[0], goal[1]);
+      this.turnBy(wanted, dt, turnRate);
+      if (dist <= step + ARRIVE_EPS) {
+        this.patrol.x = goal[0];
+        this.patrol.z = goal[1];
+        this.path.shift();
+        this.moving = false;
+        if (this.path.length === 0) this.timer = this.tuning.distractSeconds;
+      } else if (Math.abs(wrapAngle(wanted - this.patrol.yaw)) <= 0.35) {
+        this.moving = true;
+        this.patrol.x += (dx / dist) * step;
+        this.patrol.z += (dz / dist) * step;
+      } else {
+        this.moving = false; // turn on the spot first
+      }
+      return;
+    }
+    this.moving = false;
+    this.turnBy(yawToward(this.x, this.z, this.look[0], this.look[1]), dt, turnRate);
+    this.timer -= dt;
+    if (this.timer <= 0) {
+      this.mode = 'patrol';
+      this.immune = 0.6;
+      this.patrol.resumeAt(0);
+    }
   }
 
   private startRush(): void {
@@ -151,8 +212,12 @@ export class TeacherAI {
   }
 
   private turnTo(desired: number, dt: number): void {
+    this.turnBy(desired, dt, this.tuning.rushTurnRate);
+  }
+
+  private turnBy(desired: number, dt: number, rate: number): void {
     const diff = wrapAngle(desired - this.patrol.yaw);
-    const step = this.tuning.rushTurnRate * dt;
+    const step = rate * dt;
     this.patrol.yaw = wrapAngle(Math.abs(diff) <= step ? desired : this.patrol.yaw + Math.sign(diff) * step);
   }
 }

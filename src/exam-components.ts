@@ -14,3 +14,8 @@ export const PeekButton = createComponent('PeekButton', {
 export const PhoneButton = createComponent('PhoneButton', {
   kind: { type: Types.Int8, default: 0 },
 });
+
+/** Fruit throw UI. kind: 0 = the fruit bowl, 1 = left throw zone, 2 = right throw zone */
+export const FruitButton = createComponent('FruitButton', {
+  kind: { type: Types.Int8, default: 0 },
+});

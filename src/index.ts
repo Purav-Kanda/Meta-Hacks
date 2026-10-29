@@ -2,6 +2,7 @@ import { World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
 import { ClassroomSystem } from './classroom.js';
 import { ExamSystem } from './exam-system.js';
+import { FruitSystem } from './fruit-system.js';
 import { PeekSystem } from './peek-system.js';
 import { PhoneSystem } from './phone-system.js';
 import { stylePointers } from './pointer-style.js';
@@ -16,6 +17,7 @@ World.create(
   world.registerSystem(TeacherSystem);
   world.registerSystem(PeekSystem);
   world.registerSystem(PhoneSystem);
+  world.registerSystem(FruitSystem);
 
   // sharper picture in the headset: render at 1.3x the default resolution, no foveated blur
   world.renderer.xr.setFramebufferScaleFactor(1.3);
@@ -37,6 +39,7 @@ World.create(
       teacher: world.getSystem(TeacherSystem),
       peek: world.getSystem(PeekSystem),
       phone: world.getSystem(PhoneSystem),
+      fruit: world.getSystem(FruitSystem),
       world,
     };
     if (params.get('view') === 'top') {
