@@ -29,7 +29,7 @@ export class PhoneModel {
   private dodgeTimer = 0;
 
   constructor(
-    private readonly rules: PhoneRules,
+    readonly rules: PhoneRules,
     private readonly rng: () => number = Math.random,
   ) {}
 

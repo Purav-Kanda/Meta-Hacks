@@ -1,3 +1,4 @@
+import { SEATING } from './seating.js';
 import { PatrolBrain, PATROL, type Waypoint } from './teacher-brain.js';
 import type { Tuning } from './tuning.js';
 import { inCone, wrapAngle, yawToward } from './vision.js';
@@ -25,9 +26,10 @@ export interface AIEvents {
 // Aisle layout (same floor plan as the patrol route).
 const AISLE_X = 0.65;
 const AISLE_TOP_Z = -3.3;
-const AISLE_END_Z = -0.35; // standing spot right beside the player's desk
 const FRONT_ZONE_Z = -3.35;
 const ARRIVE_EPS = 0.02;
+const OUTER_LANE_X = 1.8;
+const OUTER_FRONT_Z = -3.7;
 
 /**
  * Wraps the patrol with the catch rules:
@@ -53,8 +55,20 @@ export class TeacherAI {
   constructor(
     route: readonly Waypoint[] = PATROL,
     private readonly tuning: Tuning,
+    /** route index to carry on from after a catch at the right / left aisle end, and after a fruit distraction */
+    private readonly resumeIdx: { right: number; left: number; distract: number } = { right: 3, left: 7, distract: 0 },
   ) {
     this.patrol = new PatrolBrain(route, tuning);
+  }
+
+  /** back to the start, calmly patrolling */
+  reset(): void {
+    this.patrol.reset();
+    this.mode = 'patrol';
+    this.path.length = 0;
+    this.immune = 0;
+    this.rushing = false;
+    this.moving = false;
   }
 
   get x(): number {
@@ -160,15 +174,24 @@ export class TeacherAI {
     if (this.timer <= 0) {
       this.mode = 'patrol';
       this.immune = 0.6;
-      this.patrol.resumeAt(0);
+      this.patrol.resumeAt(this.resumeIdx.distract);
     }
   }
 
   private startRush(): void {
-    this.side = this.x >= 0 ? 1 : -1;
+    const cur = this.x >= 0 ? AISLE_X : -AISLE_X; // the aisle (or lane side) she is on now
+    const tx = SEATING.aisleX(cur > 0 ? 1 : -1); // the aisle next to your desk
+    this.side = tx > 0 ? 1 : -1;
     this.path.length = 0;
-    if (this.z < FRONT_ZONE_Z) this.path.push([this.side * AISLE_X, AISLE_TOP_Z]);
-    this.path.push([this.side * AISLE_X, AISLE_END_Z]);
+    const outer = Math.abs(this.x) > OUTER_LANE_X;
+    const front = this.z < FRONT_ZONE_Z;
+    // from an outer lane (x beyond the neighbours' desks) go up that lane first, never through the desks
+    if (outer && this.z > OUTER_FRONT_Z) this.path.push([this.x, OUTER_FRONT_Z]);
+    if (outer) this.path.push([cur, AISLE_TOP_Z]);
+    // inside the desk rows and in the wrong aisle: back out to the top first
+    else if (!front && cur !== tx) this.path.push([this.x, AISLE_TOP_Z]);
+    if (outer || front || cur !== tx) this.path.push([tx, AISLE_TOP_Z]);
+    this.path.push([tx, SEATING.standZ]);
     this.mode = 'rush';
     this.rushing = true;
   }
@@ -208,7 +231,7 @@ export class TeacherAI {
   private resume(): void {
     this.mode = 'patrol';
     // from the right aisle end the next waypoint is index 3 (walk back up), from the left it is 7
-    this.patrol.resumeAt(this.side === 1 ? 3 : 7);
+    this.patrol.resumeAt(this.side === 1 ? this.resumeIdx.right : this.resumeIdx.left);
   }
 
   private turnTo(desired: number, dt: number): void {

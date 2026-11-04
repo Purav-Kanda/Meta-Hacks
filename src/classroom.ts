@@ -15,6 +15,7 @@ import {
   VisibilityState,
   createSystem,
 } from '@iwsdk/core';
+import { COL_X, COMFORT, HOME_COL, HOME_ROW, ROW_Z, SEATING, SIT_BEHIND } from './seating.js';
 
 // ---------- tiny helpers (kept allocation-free at runtime, all built once in init) ----------
 
@@ -117,27 +118,34 @@ function makeKid(shirt: number, skin: number, hair: number): Group {
   torso.position.y = 0.55;
   kid.add(torso);
 
+  // the head parts live in their own group so a classmate can turn and nod their head without moving the body
+  const headG = new Group();
+  headG.position.y = 1.0;
+  kid.add(headG);
   const head = new Mesh(new SphereGeometry(0.2, 16, 12), flat(skin));
-  head.position.y = 1.0;
-  kid.add(head);
+  headG.add(head);
 
   const hairCap = new Mesh(
     new SphereGeometry(0.21, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
     flat(hair),
   );
-  hairCap.position.y = 1.03;
-  kid.add(hairCap);
+  hairCap.position.y = 0.03;
+  headG.add(hairCap);
 
   const eyeWhite = flat(0xffffff, 0.3);
   const pupil = flat(0x111111, 0.3);
+  const pupils: Mesh[] = [];
   for (const side of [-1, 1]) {
     const ball = new Mesh(new SphereGeometry(0.075, 12, 10), eyeWhite);
-    ball.position.set(side * 0.085, 1.02, -0.16);
-    kid.add(ball);
+    ball.position.set(side * 0.085, 0.02, -0.16);
+    headG.add(ball);
     const dot = new Mesh(new SphereGeometry(0.035, 10, 8), pupil);
-    dot.position.set(side * 0.085, 1.02, -0.225);
-    kid.add(dot);
+    dot.position.set(side * 0.085, 0.02, -0.225);
+    headG.add(dot);
+    pupils.push(dot);
   }
+  kid.userData.head = headG;
+  kid.userData.pupils = pupils;
   return kid;
 }
 
@@ -154,6 +162,25 @@ function makeDesk(): Group {
     }
   }
   return desk;
+}
+
+// A proper teacher's desk: wide top with overhang, two drawer pedestals, a front panel. Top surface is y=0.8.
+function makeTeacherDesk(): Group {
+  const d = new Group();
+  const wood = flat(0x8a4b1f);
+  const dark = flat(0x6b3a17);
+  const brass = flat(0xd9b44a, 0.4);
+  d.add(slab(1.7, 0.06, 0.85, wood, 0, 0.77, 0)); // top, surface at y=0.8
+  for (const sx of [-1, 1]) {
+    d.add(slab(0.5, 0.74, 0.75, dark, sx * 0.55, 0.37, 0)); // pedestal
+    for (let i = 0; i < 3; i++) {
+      const y = 0.15 + i * 0.22;
+      d.add(slab(0.44, 0.19, 0.02, wood, sx * 0.55, y + 0.05, 0.385)); // drawer front
+      d.add(slab(0.12, 0.02, 0.025, brass, sx * 0.55, y + 0.1, 0.405)); // handle
+    }
+  }
+  d.add(slab(0.6, 0.5, 0.03, dark, 0, 0.5, -0.33)); // modesty panel at the back
+  return d;
 }
 
 function makeChair(): Group {
@@ -177,8 +204,27 @@ export class ClassroomSystem extends createSystem({}) {
   private roomRoot!: Group;
   private headPos!: Vector3;
   private calibrated = false;
-  private kids: Group[] = [];
+  readonly kids: Group[] = [];
+  /** floor, walls, board and wall decor; moved by setShell so your seat is really somewhere else in the room */
+  shell!: Group;
+  /** the two neighbors' exam papers (index 0 = left, 1 = right) */
+  readonly neighborPapers: Mesh[] = [];
+  /** classmate index sitting left / right of you (-1 = empty seat) */
+  readonly adjacent: [number, number] = [-1, -1];
+  /** everything that sits on or around your desk; the seat draw moves it */
+  seatGroup!: Group;
+  seatEntity!: Entity;
   private clock = 0;
+
+  /** world height of the classroom floor (follows your head height calibration) */
+  get floorY(): number {
+    return this.roomRoot.position.y;
+  }
+
+  /** hide or show the whole classroom (the start screen floats in its own backdrop instead) */
+  setHidden(hidden: boolean): void {
+    this.roomRoot.visible = !hidden;
+  }
 
   init(): void {
     this.headPos = new Vector3();
@@ -187,42 +233,46 @@ export class ClassroomSystem extends createSystem({}) {
     room.name = 'Classroom';
 
     // --- shell: 8m wide, 8m deep, 3m tall. Player sits near the back, facing -Z. ---
+    // (floor, walls and board live in one group so the seat draw can slide the room around your desk)
+    const shell = new Group();
+    this.shell = shell;
+    room.add(shell);
     const floor = new Mesh(
       new PlaneGeometry(8, 8),
       new MeshStandardMaterial({ map: makeWoodFloorTexture(), color: 0xc2b2a2, roughness: 0.85, metalness: 0 }),
     );
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, 0, -2);
-    room.add(floor);
+    shell.add(floor);
 
     const ceil = new Mesh(new PlaneGeometry(8, 8), flat(COL.ceiling));
     ceil.rotation.x = Math.PI / 2;
     ceil.position.set(0, 3, -2);
-    room.add(ceil);
+    shell.add(ceil);
 
     const wallMat = flat(COL.wall);
     const frontWall = new Mesh(new PlaneGeometry(8, 3), wallMat);
     frontWall.position.set(0, 1.5, -6);
-    room.add(frontWall);
+    shell.add(frontWall);
 
     const backWall = new Mesh(new PlaneGeometry(8, 3), wallMat);
     backWall.position.set(0, 1.5, 2);
     backWall.rotation.y = Math.PI;
-    room.add(backWall);
+    shell.add(backWall);
 
     for (const sx of [-1, 1]) {
       const sideWall = new Mesh(new PlaneGeometry(8, 3), wallMat);
       sideWall.position.set(sx * 4, 1.5, -2);
       sideWall.rotation.y = -sx * (Math.PI / 2);
-      room.add(sideWall);
+      shell.add(sideWall);
     }
 
     // pink trim stripe so the walls are not just one flat color
     const trimMat = flat(COL.wallTrim);
-    room.add(slab(8, 0.12, 0.02, trimMat, 0, 0.9, -5.99));
+    shell.add(slab(8, 0.12, 0.02, trimMat, 0, 0.9, -5.99));
     for (const sx of [-1, 1]) {
       const stripe = slab(0.02, 0.12, 8, trimMat, sx * 3.99, 0.9, -2);
-      room.add(stripe);
+      shell.add(stripe);
     }
 
     // --- chalkboard on the front wall ---
@@ -239,19 +289,27 @@ export class ClassroomSystem extends createSystem({}) {
     const boardMat = new MeshStandardMaterial({ map: boardTex, roughness: 1 });
     const board = new Mesh(new PlaneGeometry(4.0, 1.5), boardMat);
     board.position.set(0, 1.7, -5.93);
-    room.add(board);
-    room.add(slab(4.2, 1.7, 0.04, flat(COL.boardFrame), 0, 1.7, -5.97));
+    shell.add(board);
+    shell.add(slab(4.2, 1.7, 0.04, flat(COL.boardFrame), 0, 1.7, -5.97));
 
-    // --- player's desk + chair (seated, the user is at roughly 0,~1.2,0) ---
-    const myDesk = makeDesk();
-    myDesk.position.set(0, 0, -0.55);
-    room.add(myDesk);
+    // --- the desks: two rows of three. Whoever sits at the drawn seat is you, and your desk stuff
+    // (exam sheet, tray, phone...) lives in `seatGroup`, which the seat draw moves to your seat. ---
+    for (let r = 0; r < 2; r++) {
+      for (let c = 0; c < 3; c++) {
+        const desk = makeDesk();
+        desk.position.set(COL_X[c], 0, ROW_Z[r]);
+        room.add(desk);
+        const chair = makeChair();
+        chair.position.set(COL_X[c], 0, ROW_Z[r] + 0.75);
+        room.add(chair);
+      }
+    }
+    const seatGroup = new Group();
+    seatGroup.name = 'SeatGroup';
+    this.seatGroup = seatGroup;
+    room.add(seatGroup);
 
-    const myChair = makeChair();
-    myChair.position.set(0, 0, 0.2);
-    room.add(myChair);
-
-    // --- exam paper, lying slightly tilted toward the player ---
+    // --- exam paper texture (the neighbors' papers use it too) ---
     const paperTex = paintTexture(512, 724, (g, w, h) => {
       g.fillStyle = '#fffdf2';
       g.fillRect(0, 0, w, h);
@@ -277,57 +335,63 @@ export class ClassroomSystem extends createSystem({}) {
     pencil.rotation.z = Math.PI / 2;
     pencil.rotation.y = 0.5;
     pencil.position.set(-0.4, 0.785, -0.4);
-    room.add(pencil);
+    seatGroup.add(pencil);
 
-    // --- the neighbors: left one is the future "peek" target ---
-    const sideSeats: Array<[number, number, number, number]> = [
-      [-1.3, 0xffb703, 0xf1c27d, 0x3a2a1a],
-      [1.3, 0x06d6a0, 0xc68642, 0x111111],
-    ];
-    for (const [sx, shirt, skin, hair] of sideSeats) {
-      const nDesk = makeDesk();
-      nDesk.position.set(sx, 0, -0.55);
-      room.add(nDesk);
-      const nChair = makeChair();
-      nChair.position.set(sx, 0, 0.2);
-      room.add(nChair);
-      const kid = makeKid(shirt, skin, hair);
-      kid.position.set(sx, 0.0, 0.15);
-      room.add(kid);
-      this.kids.push(kid);
+    // the papers of whoever sits left / right of you (they ride with you; hidden when that seat is empty)
+    for (const sx of [-1.3, 1.3]) {
       const theirPaper = new Mesh(
         new PlaneGeometry(0.3, 0.42),
         new MeshStandardMaterial({ map: paperTex, roughness: 0.9 }),
       );
       theirPaper.rotation.x = -Math.PI / 2 + 0.25;
       theirPaper.position.set(sx, 0.78, -0.45);
-      room.add(theirPaper);
+      seatGroup.add(theirPaper);
+      this.neighborPapers.push(theirPaper);
     }
 
-    // a couple of rows further up so the room feels populated
-    const farRows: Array<[number, number, number, number, number]> = [
-      [-1.3, -2.2, 0xe63946, 0xf1c27d, 0xb5651d],
-      [0, -2.2, 0x8338ec, 0xc68642, 0x222222],
-      [1.3, -2.2, 0x3a86ff, 0xf1c27d, 0xffd166],
+    // the five classmates (their seats come from the seating plan)
+    const kidLooks: Array<[number, number, number]> = [
+      [0xffb703, 0xf1c27d, 0x3a2a1a],
+      [0x06d6a0, 0xc68642, 0x111111],
+      [0xe63946, 0xf1c27d, 0xb5651d],
+      [0x8338ec, 0xc68642, 0x222222],
+      [0x3a86ff, 0xf1c27d, 0xffd166],
     ];
-    for (const [fx, fz, shirt, skin, hair] of farRows) {
-      const d = makeDesk();
-      d.position.set(fx, 0, fz);
-      room.add(d);
+    for (const [shirt, skin, hair] of kidLooks) {
       const kid = makeKid(shirt, skin, hair);
-      // these kids sit with their backs to the player, facing the board
-      kid.position.set(fx, 0, fz + 0.75);
       room.add(kid);
       this.kids.push(kid);
     }
 
-    // teacher's desk at the front, empty for now (teacher arrives in piece 3)
-    const tDesk = makeDesk();
-    tDesk.scale.set(1.6, 1, 1.2);
+    // teacher's desk at the front: a proper wooden desk with drawer pedestals
+    const tDesk = makeTeacherDesk();
     tDesk.position.set(2.4, 0, -4.8);
     room.add(tDesk);
 
     this.roomEntity = this.world.createTransformEntity(room);
+    this.seatEntity = this.world.createTransformEntity(this.seatGroup, this.roomEntity);
+    SEATING.set(HOME_ROW, HOME_COL);
+    this.applySeating();
+  }
+
+  /**
+   * Put everyone where the seating plan says: the classmates move to their seats, your desk stuff moves to yours,
+   * and the room is shifted the other way so you still sit at the world origin (the room frame is what the
+   * teacher and the classmates live in).
+   */
+  applySeating(): void {
+    const plan = SEATING.arrangement;
+    plan.kids.forEach((slot, i) => {
+      this.kids[i].position.x = COL_X[slot.col];
+      this.kids[i].position.z = ROW_Z[slot.row] + SIT_BEHIND[slot.row];
+    });
+    this.adjacent[0] = plan.adjacent[0];
+    this.adjacent[1] = plan.adjacent[1];
+    this.neighborPapers[0].visible = plan.adjacent[0] >= 0;
+    this.neighborPapers[1].visible = plan.adjacent[1] >= 0;
+    this.seatGroup.position.set(SEATING.dx, 0, SEATING.dz);
+    this.roomRoot.position.x = -SEATING.dx;
+    this.roomRoot.position.z = -SEATING.dz;
   }
 
   // Headsets report real head height (an emulator stands at ~1.6 m, a seated
@@ -350,10 +414,17 @@ export class ClassroomSystem extends createSystem({}) {
       this.roomRoot.position.y = 0;
       return;
     }
-    if (this.calibrated) return;
     this.world.camera.getWorldPosition(this.headPos);
     if (this.headPos.y < 0.5) return; // tracking not ready yet
-    this.roomRoot.position.y = this.headPos.y - SEATED_EYE_Y;
-    this.calibrated = true;
+    const target = this.headPos.y - SEATED_EYE_Y;
+    if (!this.calibrated) {
+      this.roomRoot.position.y = target;
+      this.calibrated = true;
+      return;
+    }
+    // keep following your head height (sat down after starting, or put the headset on standing): quick in the
+    // menus, very slow during an exam
+    const rate = COMFORT.menu ? 1.5 : 0.12;
+    this.roomRoot.position.y += (target - this.roomRoot.position.y) * Math.min(1, Math.min(delta, 0.1) * rate);
   }
 }

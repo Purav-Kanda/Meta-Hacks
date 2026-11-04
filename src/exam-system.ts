@@ -1,3 +1,12 @@
+import { COMFORT } from './seating.js';
+import { applyTuning, SEAT_MODS } from './tuning.js';
+import { TUTORIAL } from './tutorial.js';
+import { SEAT } from './seat.js';
+import { TITLE } from './title.js';
+import { CHALLENGES, MENU, ROUND, WEEK, endlessStage, planFor, type MenuItem, type RoundPlan } from './modes.js';
+import { Progress, browserStore, resetRound, roundStats, type RoundResult } from './progress.js';
+import { ReportPanel } from './report-panel.js';
+import { sfx } from './sfx.js';
 import {
   BoxGeometry,
   CanvasTexture,
@@ -31,10 +40,16 @@ const BTN_COLORS = ['#ff4d6d', '#3a86ff', '#06b57f'];
 const FONT = '"Comic Sans MS", "Chalkboard SE", "Trebuchet MS", sans-serif';
 // tilt (radians) from lying flat; ~29 deg is readable from a seat without the board blocking the room
 const SHEET_TILT = 0.5;
+// the whole easel is drawn bigger than its layout numbers (about its bottom edge on the desk) so the answer
+// buttons are easier to hit with a hand ray
+const RIG_SCALE = 1; // (was 1.12 for bigger buttons; reverted)
+const RIG_POS = { x: 0, y: 0.785, z: -0.279 };
+
 // TEMPORARY: a button on the desk that fakes "a cheat is out" so the catch system can be tried
 // before the real cheats (peek, phone, fruit, email) exist. Flip to false when they land.
-const DEBUG_CHEAT_BUTTON = true;
+const DEBUG_CHEAT_BUTTON = false;
 const BANNER_SECONDS = 1.8;
+const CARD_SECONDS = 3.4;
 const LOCK_SECONDS = 0.35; // short beat after an answer so a double pinch cannot skip a question
 
 function makeCanvasTex(w: number, h: number): { cv: HTMLCanvasElement; g: CanvasRenderingContext2D; tex: CanvasTexture } {
@@ -100,6 +115,17 @@ export class ExamSystem extends createSystem({
   private debugCtx!: CanvasRenderingContext2D;
   private debugTex!: CanvasTexture;
   private hoverFn!: (e: Entity) => void;
+  readonly progress = new Progress(browserStore());
+  private readonly panel = new ReportPanel();
+  private lastResult: RoundResult | null = null;
+  private menuPage = 0;
+  private plan: RoundPlan = planFor('easy');
+  private challengeRot = 0;
+  private lastLevel = -1;
+  private cardLeft = 0;
+  private cardMesh!: Mesh;
+  private cardCtx!: CanvasRenderingContext2D;
+  private cardTex!: CanvasTexture;
 
   init(): void {
     const classroom = this.world.getSystem(ClassroomSystem);
@@ -109,7 +135,12 @@ export class ExamSystem extends createSystem({
     const sheet = new Group();
     sheet.name = 'ExamSheet';
     sheet.rotation.x = -Math.PI / 2 + SHEET_TILT;
-    sheet.position.set(0, 0.9, -0.49);
+    sheet.position.set(0, 0.9 - RIG_POS.y, -0.49 - RIG_POS.z);
+    const rig = new Group();
+    rig.name = 'ExamRig';
+    rig.position.set(RIG_POS.x, RIG_POS.y, RIG_POS.z);
+    rig.scale.setScalar(RIG_SCALE);
+    const rigEntity = this.world.createTransformEntity(rig, classroom.seatEntity);
 
     const s = makeCanvasTex(Math.round(SHEET_W * PX_PER_M), Math.round(SHEET_H * PX_PER_M));
     this.sheetCtx = s.g;
@@ -128,15 +159,15 @@ export class ExamSystem extends createSystem({
     backing.position.z = -0.012;
     sheet.add(backing);
 
-    const sheetEntity = this.world.createTransformEntity(sheet, classroom.roomEntity);
+    const sheetEntity = this.world.createTransformEntity(sheet, rigEntity);
 
     // two stubby legs propping the back of the board against the desk
     const legMat = new MeshStandardMaterial({ color: 0x6a4cff, roughness: 1 });
     for (const lx of [-0.22, 0.22]) {
       const leg = new Mesh(new CylinderGeometry(0.012, 0.012, 0.26, 8), legMat);
-      leg.position.set(lx, 0.8875, -0.775);
+      leg.position.set(lx, 0.8875 - RIG_POS.y, -0.775 - RIG_POS.z);
       leg.rotation.x = 0.523;
-      this.world.createTransformEntity(leg, classroom.roomEntity);
+      this.world.createTransformEntity(leg, rigEntity);
     }
 
     // three answer buttons, each its own entity so the input system can hover/press them
@@ -167,7 +198,22 @@ export class ExamSystem extends createSystem({
     this.bannerMesh.position.set(0, 1.22, -0.8);
     this.bannerMesh.renderOrder = 5;
     this.bannerMesh.visible = false;
-    this.world.createTransformEntity(this.bannerMesh, classroom.roomEntity);
+    this.world.createTransformEntity(this.bannerMesh, classroom.seatEntity);
+
+    // big title card shown for a few seconds when a round starts ("MONDAY: Easy Start", "LEVEL 3")
+    const cd = makeCanvasTex(1024, 384);
+    this.cardCtx = cd.g;
+    this.cardTex = cd.tex;
+    this.cardMesh = new Mesh(new PlaneGeometry(0.8, 0.3), new MeshBasicMaterial({ map: cd.tex, transparent: true, depthWrite: false }));
+    this.cardMesh.position.set(0, 1.3, -0.85);
+    this.cardMesh.renderOrder = 6;
+    this.cardMesh.visible = false;
+    this.world.createTransformEntity(this.cardMesh, classroom.seatEntity);
+
+    // sticker book before an exam, report card after it, floating above the exam sheet
+    this.panel.mesh.position.set(0, 1.3, -1.0);
+    this.world.createTransformEntity(this.panel.mesh, classroom.seatEntity);
+    this.exam.onEnd = () => this.onExamEnded();
 
     if (DEBUG_CHEAT_BUTTON) {
       const dbg = makeCanvasTex(320, 180);
@@ -179,7 +225,7 @@ export class ExamSystem extends createSystem({
       );
       this.debugMesh.rotation.x = -Math.PI / 2;
       this.debugMesh.position.set(0.4, 0.782, -0.2);
-      const dEnt = this.world.createTransformEntity(this.debugMesh, classroom.roomEntity);
+      const dEnt = this.world.createTransformEntity(this.debugMesh, classroom.seatEntity);
       dEnt.addComponent(ExamButton, { slot: 3 });
       dEnt.addComponent(RayInteractable);
       dEnt.addComponent(PokeInteractable);
@@ -210,11 +256,24 @@ export class ExamSystem extends createSystem({
       }
       return;
     }
+    TITLE.active = false; // pressing a menu button while the start screen is up just dismisses it
+    TITLE.leaving = false;
     if (this.lockLeft > 0 || this.btnLabel[slot] === null) return;
     const phase = this.exam.phase;
     if (phase === 'ready' || phase === 'done') {
-      this.exam.start();
-      this.refresh(true);
+      const item = MENU[this.menuPage][slot];
+      if (item.kind === 'page') {
+        this.menuPage = item.to;
+        this.refresh(true);
+        return;
+      }
+      this.beginRound(planFor(item.id, { challengeIdx: this.nextChallenge(), weekDay: this.progress.data.weekDay }));
+      return;
+    }
+    if (SEAT.holding) return; // the seat draw is still on screen
+    if (ROUND.mode === 'tutorial' && !TUTORIAL.canAnswer(this.exam.cursor, roundStats)) {
+      TUTORIAL.nudgeSeq += 1; // the coach card shakes: try the cheat first
+      sfx.click();
       return;
     }
     if (this.exam.answer(slot)) {
@@ -224,6 +283,7 @@ export class ExamSystem extends createSystem({
   }
 
   update(delta: number): void {
+    COMFORT.menu = this.exam.phase !== 'playing';
     if (this.lockLeft > 0) {
       this.lockLeft -= delta;
       if (this.lockLeft <= 0) {
@@ -232,7 +292,7 @@ export class ExamSystem extends createSystem({
         this.refresh(true);
       }
     }
-    if (this.lockLeft <= 0) {
+    if (this.lockLeft <= 0 && !SEAT.holding) {
       this.exam.tick(delta);
     }
     // a new warning pops the banner
@@ -253,6 +313,8 @@ export class ExamSystem extends createSystem({
         this.bannerMesh.rotation.z = Math.sin(age * 28) * 0.06 * Math.max(0, 1 - age / 0.7);
       }
     }
+    this.updateCard(delta);
+    this.updateEndless();
     if (this.debugMesh) {
       const on = this.exam.evidence.active;
       const show = this.exam.phase === 'playing';
@@ -264,6 +326,164 @@ export class ExamSystem extends createSystem({
     }
     this.refresh(false);
     this.queries.buttons.entities.forEach(this.hoverFn);
+  }
+
+  /** the first challenge you have not beaten yet (then they rotate) */
+  private nextChallenge(): number {
+    const done = new Set(this.progress.data.challenges);
+    const i = CHALLENGES.findIndex((c) => !done.has(c.id));
+    return i >= 0 ? i : this.challengeRot++ % CHALLENGES.length;
+  }
+
+  /** set up everything a round plan changes, then start the exam */
+  private beginRound(plan: RoundPlan): void {
+    this.plan = plan;
+    ROUND.set(plan);
+    // draw a seat (Training Day always gets the middle seat); it nudges how far she sees and how good the neighbors are
+    if (plan.mode === 'tutorial') SEAT.set('backM');
+    else SEAT.draw();
+    SEAT_MODS.vision = SEAT.current.vision;
+    SEAT_MODS.peek = SEAT.current.peek;
+    applyTuning(plan.base, plan.intensity, plan.overrides);
+    const r = this.exam.rules;
+    r.passMark = plan.passMark;
+    r.seconds = plan.seconds;
+    r.maxWarnings = plan.maxWarnings;
+    r.questionCount = plan.questions;
+    r.endless = plan.endless;
+    r.maxWrong = plan.maxWrong;
+    resetRound(plan.mode);
+    roundStats.day = plan.day;
+    roundStats.challengeId = plan.challengeId;
+    this.lastResult = null;
+    this.lastLevel = -1;
+    this.exam.start();
+    this.showCard(plan.introTitle, plan.introSub, '#3a86ff');
+    this.refresh(true);
+  }
+
+  /** endless: every 4 answers she gets faster, and at level 3 a second teacher walks in */
+  private updateEndless(): void {
+    if (!this.plan.endless || this.exam.phase !== 'playing') return;
+    const st = endlessStage(this.exam.answeredCount());
+    if (st.level === this.lastLevel) return;
+    const first = this.lastLevel === -1;
+    this.lastLevel = st.level;
+    if (first) return;
+    applyTuning(st.base, st.intensity, this.plan.overrides);
+    this.showCard(`LEVEL ${st.level + 1}`, st.level === 3 ? 'a second teacher joins!' : 'she is getting faster...', '#ff8c00');
+    sfx.ding();
+  }
+
+  private showCard(title: string, sub: string, color: string): void {
+    const g = this.cardCtx;
+    const w = g.canvas.width;
+    const h = g.canvas.height;
+    g.clearRect(0, 0, w, h);
+    g.fillStyle = color;
+    g.beginPath();
+    g.roundRect(8, 8, w - 16, h - 16, 60);
+    g.fill();
+    g.lineWidth = 12;
+    g.strokeStyle = '#ffffff';
+    g.stroke();
+    g.fillStyle = '#ffffff';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    let size = 96;
+    g.font = `bold ${size}px ${FONT}`;
+    while (g.measureText(title).width > w - 120 && size > 36) {
+      size -= 4;
+      g.font = `bold ${size}px ${FONT}`;
+    }
+    g.fillText(title, w / 2, 140);
+    size = 54;
+    g.font = `${size}px ${FONT}`;
+    while (g.measureText(sub).width > w - 120 && size > 26) {
+      size -= 2;
+      g.font = `${size}px ${FONT}`;
+    }
+    g.fillText(sub, w / 2, 262);
+    this.cardTex.needsUpdate = true;
+    this.cardMesh.visible = true;
+    this.cardLeft = CARD_SECONDS;
+  }
+
+  private updateCard(delta: number): void {
+    if (this.cardLeft <= 0) return;
+    this.cardLeft -= delta;
+    if (this.cardLeft <= 0) {
+      this.cardMesh.visible = false;
+      return;
+    }
+    const age = CARD_SECONDS - this.cardLeft;
+    const pop = age < 0.3 ? 1.15 * Math.sin((age / 0.3) * (Math.PI / 2)) : age < 0.45 ? 1.15 - 0.15 * ((age - 0.3) / 0.15) : 1;
+    const out = this.cardLeft < 0.3 ? this.cardLeft / 0.3 : 1;
+    this.cardMesh.scale.setScalar(Math.max(0.01, pop * out));
+  }
+
+  private menuLabel(item: MenuItem): string {
+    if (item.kind === 'page') return item.label;
+    switch (item.id) {
+      case 'tutorial':
+        return this.progress.data.tutorialDone ? 'TRAINING DAY' : 'START HERE: TRAINING DAY';
+      case 'easy':
+        return 'EASY  (1 teacher)';
+      case 'notEasy':
+        return 'NOT EASY  (2 teachers)';
+      case 'rush':
+        return '60-SECOND RUSH';
+      case 'endless':
+        return 'ENDLESS SURVIVAL';
+      case 'challenge': {
+        const done = new Set(this.progress.data.challenges);
+        const i = CHALLENGES.findIndex((c) => !done.has(c.id));
+        return `CHALLENGE: ${CHALLENGES[i >= 0 ? i : this.challengeRot % CHALLENGES.length].name}`;
+      }
+      case 'week': {
+        const d = WEEK[Math.min(this.progress.data.weekDay, WEEK.length - 1)];
+        return `SCHOOL WEEK: ${d.name} - ${d.title}`;
+      }
+    }
+  }
+
+  private onExamEnded(): void {
+    const ex = this.exam;
+    const st = roundStats;
+    st.score = ex.score();
+    st.total = ex.questions.length;
+    st.warnings = ex.warnings;
+    st.caught = ex.endedBy === 'caught';
+    st.passed = ex.passed();
+    st.goalMet = false;
+    st.note = '';
+    if (st.mode === 'challenge') {
+      const c = CHALLENGES.find((x) => x.id === st.challengeId);
+      st.goalMet = !st.caught && !!c && c.test(st);
+      st.note = st.goalMet ? 'CHALLENGE COMPLETE!' : 'CHALLENGE FAILED - try again';
+    } else if (st.mode === 'week') {
+      const d = WEEK[Math.max(0, st.day - 1)];
+      st.goalMet = !st.caught && st.passed;
+      st.note = st.goalMet
+        ? st.day >= WEEK.length
+          ? 'WEEK COMPLETE! STRAIGHT As'
+          : `${d.name} CLEARED - ${WEEK[st.day].name} next`
+        : `${d.name} FAILED - try again`;
+    } else if (st.mode === 'tutorial') {
+      st.note = 'TRAINING COMPLETE! now try EASY';
+      st.goalMet = true;
+    } else if (st.mode === 'endless') {
+      st.note = `${ex.wrong >= (ex.rules.maxWrong ?? 0) && ex.endedBy === 'strikes' ? '3 wrong answers' : 'caught cheating'}`;
+    }
+    this.lastResult = this.progress.record(st);
+    if (this.lastResult.newStickers.length > 0) sfx.sticker();
+  }
+
+  private updatePanel(): void {
+    const ex = this.exam;
+    if (ex.phase === 'playing') this.panel.hide();
+    else if (ex.phase === 'done' && this.lastResult) this.panel.paintResult(this.lastResult, roundStats, this.progress);
+    else this.panel.paintBook(this.progress);
   }
 
   /** repaint only when something visible changed */
@@ -285,6 +505,7 @@ export class ExamSystem extends createSystem({
     this.shownPaintedWarnings = ex.warnings;
     this.paintSheet();
     this.paintButtons();
+    this.updatePanel();
   }
 
   private paintSheet(): void {
@@ -303,13 +524,27 @@ export class ExamSystem extends createSystem({
       g.textAlign = 'center';
       g.fillStyle = '#d6335a';
       g.font = `bold 120px ${FONT}`;
-      g.fillText('FINAL EXAM', w / 2, 190);
+      g.fillText('POP QUIZ', w / 2, 190);
       g.fillStyle = '#222';
       g.font = `48px ${FONT}`;
-      g.fillText(`${ex.questions.length} questions  -  ${mmss(ex.rules.seconds)}  -  pass with ${ex.rules.passMark}`, w / 2, 280);
+      g.fillText(this.progress.data.tutorialDone ? `pick your exam   (page ${this.menuPage + 1} of ${MENU.length})` : 'first time? press START HERE', w / 2, 280);
       g.fillStyle = '#6a4cff';
       g.font = `italic 40px ${FONT}`;
       g.fillText('(eyes on your own paper. totally.)', w / 2, 350);
+      return;
+    }
+
+    if (ex.phase === 'done' && this.plan.endless) {
+      g.textAlign = 'center';
+      g.fillStyle = '#d62839';
+      g.font = `bold 100px ${FONT}`;
+      g.fillText(ex.endedBy === 'caught' ? 'BUSTED!' : 'OUT OF LIVES!', w / 2, 170);
+      g.fillStyle = '#d6335a';
+      g.font = `bold 190px ${FONT}`;
+      g.fillText(`${ex.score()}`, w / 2, 330);
+      g.fillStyle = '#222';
+      g.font = `bold 50px ${FONT}`;
+      g.fillText('right answers in a row of chaos', w / 2, 395);
       return;
     }
 
@@ -320,7 +555,7 @@ export class ExamSystem extends createSystem({
       g.fillText('BUSTED!', w / 2, 190);
       g.fillStyle = '#222';
       g.font = `bold 46px ${FONT}`;
-      g.fillText("3 warnings. Off to the principal's office.", w / 2, 270);
+      g.fillText(`${ex.rules.maxWarnings} warnings. Off to the principal's office.`, w / 2, 270);
       g.save();
       g.translate(w / 2, 365);
       g.rotate(-0.08);
@@ -357,11 +592,21 @@ export class ExamSystem extends createSystem({
     g.fillStyle = '#fff';
     g.font = `bold 54px ${FONT}`;
     g.textAlign = 'left';
-    g.fillText(`Q ${Math.min(ex.cursor + 1, ex.questions.length)} / ${ex.questions.length}`, 36, 68);
-    this.drawWarningFaces(g, w / 2, 48, ex.warnings, ex.rules.maxWarnings);
+    if (this.plan.endless) g.fillText(`SCORE ${ex.score()}`, 36, 68);
+    else g.fillText(`Q ${Math.min(ex.cursor + 1, ex.questions.length)} / ${ex.questions.length}`, 36, 68);
+    if (ROUND.mode !== 'tutorial') this.drawWarningFaces(g, w / 2, 48, ex.warnings, ex.rules.maxWarnings);
     g.textAlign = 'right';
-    g.fillStyle = ex.secondsLeft < 30 ? '#ffe066' : '#fff';
-    g.fillText(`TIME ${mmss(ex.secondsLeft)}`, w - 36, 68);
+    if (ROUND.mode === 'tutorial') {
+      // no timer or warning faces in training: just a label (the clock and faces would be meaningless)
+      g.fillStyle = '#fff';
+      g.fillText('TRAINING', w - 36, 68);
+    } else if (this.plan.endless) {
+      g.fillStyle = ex.wrong >= (ex.rules.maxWrong ?? 3) - 1 ? '#ffe066' : '#fff';
+      g.fillText(`MISS ${ex.wrong}/${ex.rules.maxWrong ?? 3}`, w - 36, 68);
+    } else {
+      g.fillStyle = ex.secondsLeft < 30 ? '#ffe066' : '#fff';
+      g.fillText(`TIME ${mmss(ex.secondsLeft)}`, w - 36, 68);
+    }
 
     g.fillStyle = '#1b1b1b';
     g.font = `bold 54px ${FONT}`;
@@ -427,7 +672,7 @@ export class ExamSystem extends createSystem({
     g.textBaseline = 'middle';
     g.font = `bold 78px ${FONT}`;
     const caught = ex.phase === 'done' && ex.endedBy === 'caught';
-    g.fillText(caught ? 'BUSTED!!!' : `WARNING ${ex.warnings} / ${ex.rules.maxWarnings}!`, w / 2, h / 2 + 4);
+    g.fillText(caught ? 'BUSTED!!!' : ROUND.mode === 'tutorial' ? 'PRACTICE WARNING!' : `WARNING ${ex.warnings} / ${ex.rules.maxWarnings}!`, w / 2, h / 2 + 4);
     this.bannerTex.needsUpdate = true;
     this.bannerMesh.visible = true;
     this.bannerLeft = BANNER_SECONDS;
@@ -463,7 +708,8 @@ export class ExamSystem extends createSystem({
         `C   ${q.options[2]}`,
       ];
     } else {
-      this.btnLabel = [null, ex.phase === 'ready' ? 'START EXAM' : 'TRY AGAIN', null];
+      const page = MENU[this.menuPage];
+      this.btnLabel = [this.menuLabel(page[0]), this.menuLabel(page[1]), this.menuLabel(page[2])];
     }
     for (let i = 0; i < 3; i++) {
       const label = this.btnLabel[i];
@@ -478,7 +724,12 @@ export class ExamSystem extends createSystem({
       g.roundRect(4, 4, w - 8, h - 8, 36);
       g.fill();
       g.fillStyle = '#fff';
-      g.font = `bold 46px ${FONT}`;
+      let fs = 46;
+      g.font = `bold ${fs}px ${FONT}`;
+      while (g.measureText(label).width > w - 90 && fs > 26) {
+        fs -= 2;
+        g.font = `bold ${fs}px ${FONT}`;
+      }
       g.textBaseline = 'middle';
       if (ex.phase === 'playing') {
         g.textAlign = 'left';

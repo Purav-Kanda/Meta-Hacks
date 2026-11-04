@@ -1,4 +1,5 @@
 import type { Tuning } from './tuning.js';
+import { SEATING } from './seating.js';
 import { wrapAngle, yawToward } from './vision.js';
 
 export interface Waypoint {
@@ -15,11 +16,29 @@ export interface Waypoint {
 export const PATROL: Waypoint[] = [
   { x: 0, z: -3.9, pause: 2, lookAt: [0, 0] },
   { x: 0.65, z: -3.3 },
-  { x: 0.65, z: -0.35, pause: 1.6, lookAt: [0, 0.05] },
+  { x: 0.65, get z() { return SEATING.standZ; }, pause: 1.6, lookAt: SEATING.look },
   { x: 0.65, z: -3.3 },
   { x: 0, z: -3.9, pause: 1, lookAt: [0, 0] },
   { x: -0.65, z: -3.3 },
-  { x: -0.65, z: -0.35, pause: 1.6, lookAt: [0, 0.05] },
+  { x: -0.65, get z() { return SEATING.standZ; }, pause: 1.6, lookAt: SEATING.look },
+  { x: -0.65, z: -3.3 },
+];
+
+/**
+ * The second teacher (Not Easy). She walks the outer lanes beside the neighbours, so she never shares the
+ * aisles with the first teacher, and cuts across the front by the aisle tops. Indexes 3 and 8 are the
+ * aisle tops she resumes from after a catch.
+ */
+export const PATROL_OUTER: Waypoint[] = [
+  { x: -2.4, z: -3.8, pause: 1.2, lookAt: [0, 0] },
+  { x: -2.4, get z() { return SEATING.standZ - 0.65; }, pause: 1.6, lookAt: SEATING.look },
+  { x: -2.4, z: -3.8 },
+  { x: -0.65, z: -3.3 },
+  { x: 0.65, z: -3.3 },
+  { x: 2.4, z: -3.8, pause: 1.2, lookAt: [0, 0] },
+  { x: 2.4, get z() { return SEATING.standZ - 0.65; }, pause: 1.6, lookAt: SEATING.look },
+  { x: 2.4, z: -3.8 },
+  { x: 0.65, z: -3.3 },
   { x: -0.65, z: -3.3 },
 ];
 
@@ -45,6 +64,18 @@ export class PatrolBrain {
     this.waitLeft = (route[0].pause ?? 0) * tuning.pauseScale;
     this.pausedAt = 0;
     this.yaw = route[0].lookAt ? yawToward(this.x, this.z, route[0].lookAt[0], route[0].lookAt[1]) : 0;
+  }
+
+  /** back to the first waypoint, as at the start */
+  reset(): void {
+    const w = this.route[0];
+    this.x = w.x;
+    this.z = w.z;
+    this.target = 1;
+    this.waitLeft = (w.pause ?? 0) * this.tuning.pauseScale;
+    this.pausedAt = 0;
+    this.walking = false;
+    this.yaw = w.lookAt ? yawToward(this.x, this.z, w.lookAt[0], w.lookAt[1]) : 0;
   }
 
   /** after being pulled off the route (rush, scolding), carry on toward waypoint `index` */

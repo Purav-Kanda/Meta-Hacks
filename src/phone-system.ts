@@ -20,7 +20,9 @@ import { ExamSystem } from './exam-system.js';
 import { PhoneButton } from './exam-components.js';
 import { PhoneModel } from './phone.js';
 import { TeacherSystem } from './teacher-system.js';
-import { ACTIVE_TUNING } from './tuning.js';
+import { ACTIVE_TUNING, onTuningChange } from './tuning.js';
+import { roundStats } from './progress.js';
+import { ROUND } from './modes.js';
 
 const FONT = '"Comic Sans MS", "Chalkboard SE", "Trebuchet MS", sans-serif';
 const LETTERS = ['A', 'B', 'C'];
@@ -96,6 +98,13 @@ export class PhoneSystem extends createSystem({
   private shownAsk = '';
 
   init(): void {
+    onTuningChange(() => {
+      const r = this.model.rules;
+      r.bufferMin = ACTIVE_TUNING.phoneBufferMin;
+      r.bufferMax = ACTIVE_TUNING.phoneBufferMax;
+      r.cooldown = ACTIVE_TUNING.phoneCooldown;
+      r.dodgeSeconds = ACTIVE_TUNING.hideDodgeSeconds;
+    });
     const classroom = this.world.getSystem(ClassroomSystem);
     const exam = this.world.getSystem(ExamSystem);
     const teacher = this.world.getSystem(TeacherSystem);
@@ -111,7 +120,7 @@ export class PhoneSystem extends createSystem({
     this.deskPhone.rotation.x = -Math.PI / 2;
     this.deskPhone.rotation.z = 0.35;
     this.deskPhone.position.set(-0.42, 0.784, -0.28);
-    const de = this.world.createTransformEntity(this.deskPhone, classroom.roomEntity);
+    const de = this.world.createTransformEntity(this.deskPhone, classroom.seatEntity);
     de.addComponent(PhoneButton, { kind: 0 });
     de.addComponent(RayInteractable);
     de.addComponent(PokeInteractable);
@@ -133,7 +142,7 @@ export class PhoneSystem extends createSystem({
     this.tape.rotation.z = 0.35;
     this.tape.position.set(-0.42, 0.785, -0.28);
     this.tape.visible = false;
-    this.world.createTransformEntity(this.tape, classroom.roomEntity);
+    this.world.createTransformEntity(this.tape, classroom.seatEntity);
 
     // the raised, glowing phone
     this.raised = new Group();
@@ -153,7 +162,7 @@ export class PhoneSystem extends createSystem({
     this.halo.position.z = -0.03;
     this.halo.renderOrder = 3;
     this.raised.add(this.halo);
-    const phoneEntity = this.world.createTransformEntity(this.raised, classroom.roomEntity);
+    const phoneEntity = this.world.createTransformEntity(this.raised, classroom.seatEntity);
 
     const a = canvasTex(300, 135);
     this.askG = a.g;
@@ -191,8 +200,12 @@ export class PhoneSystem extends createSystem({
     this.queries.pressed.subscribe('qualify', (e: Entity) => {
       if (this.exam.exam.phase !== 'playing') return;
       const kind = e.getValue(PhoneButton, 'kind') as number;
-      if (kind === 0) this.model.raise();
-      else if (kind === 1) this.model.ask();
+      if (kind === 0) {
+        if (ROUND.allows('phone')) this.model.raise();
+      }
+      else if (kind === 1) {
+        if (this.model.ask()) roundStats.phoneAsks += 1;
+      }
       else this.model.hide();
     });
   }
@@ -216,9 +229,9 @@ export class PhoneSystem extends createSystem({
       this.model.newQuestion();
     }
     // she just handed out a warning while the phone was out: she takes it
-    if (this.teacher.ai.events.warned && this.model.state === 'up') this.model.confiscate();
+    if (this.teacher.anyWarned && this.model.state === 'up') this.model.confiscate();
 
-    this.model.update(dt, ex.correctSlot(), this.teacher.ai.mode === 'rush');
+    this.model.update(dt, ex.correctSlot(), this.teacher.anyRush);
     ex.evidence.set('phone', this.model.evidence);
     this.teacher.rangeScale = this.model.evidence ? ACTIVE_TUNING.phoneGlowScale : 1;
     this.syncView();
@@ -233,7 +246,7 @@ export class PhoneSystem extends createSystem({
 
   private syncView(): void {
     const m = this.model;
-    this.deskPhone.visible = m.state === 'pocket';
+    this.deskPhone.visible = m.state === 'pocket' && ROUND.allows('phone');
     this.tape.visible = m.state === 'gone';
     this.raised.visible = m.state === 'up';
     if (m.state !== 'up') return;

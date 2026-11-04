@@ -26,7 +26,7 @@ export class FruitModel {
   private landedKind = 0;
 
   constructor(
-    private readonly rules: FruitRules,
+    readonly rules: FruitRules,
     private readonly rng: () => number = Math.random,
   ) {
     this.stock = rules.stock;
@@ -48,6 +48,14 @@ export class FruitModel {
     if (this.state !== 'idle' || this.stock <= 0) return false;
     this.kind = Math.floor(this.rng() * this.rules.kinds) % this.rules.kinds;
     this.state = 'carrying';
+    return true;
+  }
+
+  /** the fruit in hand has been thrown (grab release or THROW bubble): spend it */
+  spend(): boolean {
+    if (this.state !== 'carrying') return false;
+    this.stock -= 1;
+    this.state = 'idle';
     return true;
   }
 

@@ -1,7 +1,7 @@
 import { dealQuestions, type Question } from './questions.js';
 
 export type ExamPhase = 'ready' | 'playing' | 'done';
-export type ExamEnd = 'finished' | 'time' | 'caught';
+export type ExamEnd = 'finished' | 'time' | 'caught' | 'strikes';
 
 /** Which cheats are currently "out" (visible evidence). Cheats set/clear their own name. */
 export class EvidenceState {
@@ -27,6 +27,10 @@ export interface ExamRules {
   maxWarnings: number;
   /** how many questions each attempt draws from the pool (default 10) */
   questionCount?: number;
+  /** endless mode: more questions are dealt whenever you run out */
+  endless?: boolean;
+  /** endless mode: this many wrong answers ends the round (0 = never) */
+  maxWrong?: number;
 }
 
 /**
@@ -37,6 +41,7 @@ export class ExamModel {
   phase: ExamPhase = 'ready';
   endedBy: ExamEnd | null = null;
   warnings = 0;
+  wrong = 0;
   readonly evidence = new EvidenceState();
   cursor = 0;
   secondsLeft: number;
@@ -60,6 +65,7 @@ export class ExamModel {
     this.phase = 'playing';
     this.endedBy = null;
     this.warnings = 0;
+    this.wrong = 0;
     this.evidence.clear();
     this.cursor = 0;
     this.secondsLeft = this.rules.seconds;
@@ -79,8 +85,24 @@ export class ExamModel {
   answer(slot: number): boolean {
     if (this.phase !== 'playing' || slot < 0 || slot > 2) return false;
     this.picks[this.cursor] = slot;
+    if (slot !== this.questions[this.cursor].correct) this.wrong += 1;
     this.cursor += 1;
-    if (this.cursor >= this.questions.length) this.finish('finished');
+    const maxWrong = this.rules.maxWrong ?? 0;
+    if (maxWrong > 0 && this.wrong >= maxWrong) {
+      this.finish('strikes');
+      return true;
+    }
+    if (this.cursor >= this.questions.length) {
+      if (this.rules.endless) {
+        const more = dealQuestions(this.pool, this.rules.questionCount ?? 10, this.rng);
+        for (const q of more) {
+          this.questions.push(q);
+          this.picks.push(-1);
+        }
+      } else {
+        this.finish('finished');
+      }
+    }
     return true;
   }
 
@@ -101,10 +123,14 @@ export class ExamModel {
     return false;
   }
 
+  /** called once when an exam ends (for any reason) */
+  onEnd: (() => void) | null = null;
+
   private finish(reason: ExamEnd): void {
     this.phase = 'done';
     this.endedBy = reason;
     this.evidence.clear();
+    this.onEnd?.();
   }
 
   score(): number {

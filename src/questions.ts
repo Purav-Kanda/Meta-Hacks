@@ -4,6 +4,8 @@ export interface Question {
   options: [string, string, string];
   /** index (0-2) of the right option */
   correct: 0 | 1 | 2;
+  /** a scribbled study note for the crib sheet: a fact to learn from, never a letter. Keep it under ~45 characters. */
+  note?: string;
 }
 
 // The pool the exam draws from. Each attempt deals `questionCount` random questions from
@@ -12,34 +14,34 @@ export interface Question {
 // so they fit on the buttons.
 export const QUESTIONS: Question[] = [
   // --- real facts ---
-  { prompt: 'How many hearts does an octopus have?', options: ['3', '1', '5'], correct: 0 },
-  { prompt: 'What is the chemical symbol for gold?', options: ['Go', 'Gd', 'Au'], correct: 2 },
-  { prompt: 'Botanically speaking, which of these is a berry?', options: ['Strawberry', 'Banana', 'Raspberry'], correct: 1 },
-  { prompt: 'How many bones does an adult human have?', options: ['186', '226', '206'], correct: 2 },
-  { prompt: 'What is 12 x 13?', options: ['156', '144', '166'], correct: 0 },
-  { prompt: 'What is the largest ocean on Earth?', options: ['Atlantic', 'Pacific', 'Indian'], correct: 1 },
-  { prompt: 'What is the square root of 169?', options: ['12', '14', '13'], correct: 2 },
-  { prompt: 'Which gas do plants absorb from the air?', options: ['Carbon dioxide', 'Oxygen', 'Nitrogen'], correct: 0 },
-  { prompt: 'In which year did the Titanic sink?', options: ['1905', '1921', '1912'], correct: 2 },
-  { prompt: 'What is the 7th prime number?', options: ['13', '17', '19'], correct: 1 },
-  { prompt: 'How many legs does a spider have?', options: ['6', '8', '10'], correct: 1 },
-  { prompt: 'Which planet is known as the Red Planet?', options: ['Venus', 'Jupiter', 'Mars'], correct: 2 },
-  { prompt: 'What is 9 x 9?', options: ['81', '72', '99'], correct: 0 },
-  { prompt: 'How many days are in a leap year?', options: ['365', '366', '364'], correct: 1 },
+  { prompt: 'How many hearts does an octopus have?', options: ['3', '1', '5'], correct: 0 , note: 'Octopus: 3 hearts (2 gills + 1 body)' },
+  { prompt: 'What is the chemical symbol for gold?', options: ['Go', 'Gd', 'Au'], correct: 2 , note: 'Gold = Au (Latin: aurum)' },
+  { prompt: 'Botanically speaking, which of these is a berry?', options: ['Strawberry', 'Banana', 'Raspberry'], correct: 1 , note: 'Real berries: banana, grape. NOT strawberry' },
+  { prompt: 'How many bones does an adult human have?', options: ['186', '226', '206'], correct: 2 , note: 'Adult skeleton: 206 bones' },
+  { prompt: 'What is 12 x 13?', options: ['156', '144', '166'], correct: 0 , note: '12 x 13 = 12x10 + 12x3' },
+  { prompt: 'What is the largest ocean on Earth?', options: ['Atlantic', 'Pacific', 'Indian'], correct: 1 , note: 'Biggest ocean = the Pacific' },
+  { prompt: 'What is the square root of 169?', options: ['12', '14', '13'], correct: 2 , note: 'Squares: 11x11=121, 12x12=144, 13x13=169' },
+  { prompt: 'Which gas do plants absorb from the air?', options: ['Carbon dioxide', 'Oxygen', 'Nitrogen'], correct: 0 , note: 'Plants breathe in CO2, out O2' },
+  { prompt: 'In which year did the Titanic sink?', options: ['1905', '1921', '1912'], correct: 2 , note: 'Titanic sank in April 1912' },
+  { prompt: 'What is the 7th prime number?', options: ['13', '17', '19'], correct: 1 , note: 'Primes: 2 3 5 7 11 13 17 19 ...' },
+  { prompt: 'How many legs does a spider have?', options: ['6', '8', '10'], correct: 1 , note: 'Spiders: 8 legs. Insects: 6' },
+  { prompt: 'Which planet is known as the Red Planet?', options: ['Venus', 'Jupiter', 'Mars'], correct: 2 , note: 'Red Planet = Mars (rusty dust)' },
+  { prompt: 'What is 9 x 9?', options: ['81', '72', '99'], correct: 0 , note: '9s trick: 9 x 9 = 90 - 9' },
+  { prompt: 'How many days are in a leap year?', options: ['365', '366', '364'], correct: 1 , note: 'Leap year = 365 days + 1 extra' },
   // --- goofy but with a real answer ---
-  { prompt: 'What do you call a group of crows?', options: ['A gossip', 'A murder', 'A committee'], correct: 1 },
-  { prompt: 'What do you call a group of flamingos?', options: ['A flamboyance', 'A pinkness', 'A flock-tail'], correct: 0 },
-  { prompt: 'What is the powerhouse of the cell?', options: ['Nucleus', 'Mitochondria', 'Wi-Fi router'], correct: 1 },
-  { prompt: 'Which of these is NOT a fruit?', options: ['Mango', 'Potato', 'Pear'], correct: 1 },
-  { prompt: 'What has hands but cannot clap?', options: ['A clock', 'A glove', 'A ghost'], correct: 0 },
-  { prompt: 'What gets wetter the more it dries?', options: ['A fish', 'A towel', 'Soap'], correct: 1 },
-  { prompt: 'Which month has 28 days?', options: ['February', 'None', 'All of them'], correct: 2 },
-  { prompt: 'What do you call a sleeping bull?', options: ['A bulldozer', 'A cow-ch potato', 'A bull-nap'], correct: 0 },
+  { prompt: 'What do you call a group of crows?', options: ['A gossip', 'A murder', 'A committee'], correct: 1 , note: 'Group of crows = a murder (spooky)' },
+  { prompt: 'What do you call a group of flamingos?', options: ['A flamboyance', 'A pinkness', 'A flock-tail'], correct: 0 , note: 'Group of flamingos = a flamboyance' },
+  { prompt: 'What is the powerhouse of the cell?', options: ['Nucleus', 'Mitochondria', 'Wi-Fi router'], correct: 1 , note: 'Mitochondria = powerhouse of the cell' },
+  { prompt: 'Which of these is NOT a fruit?', options: ['Mango', 'Potato', 'Pear'], correct: 1 , note: 'Potato is a tuber, not a fruit' },
+  { prompt: 'What has hands but cannot clap?', options: ['A clock', 'A glove', 'A ghost'], correct: 0 , note: 'Riddle: hands but can\'t clap = a clock' },
+  { prompt: 'What gets wetter the more it dries?', options: ['A fish', 'A towel', 'Soap'], correct: 1 , note: 'Riddle: gets wetter as it dries = a towel' },
+  { prompt: 'Which month has 28 days?', options: ['February', 'None', 'All of them'], correct: 2 , note: 'Every month has 28 days (or more!)' },
+  { prompt: 'What do you call a sleeping bull?', options: ['A bulldozer', 'A cow-ch potato', 'A bull-nap'], correct: 0 , note: 'Sleeping bull = a bulldozer (bull-dozer)' },
   // --- classroom jokes (free points if you read carefully) ---
-  { prompt: 'What is the #1 rule of this exam?', options: ['Own paper only', "Everyone's paper", 'The ceiling'], correct: 0 },
-  { prompt: 'You drop your pencil. What now?', options: ['Scream loudly', 'Ask quietly', 'Eat it'], correct: 1 },
-  { prompt: 'What sound does a duck make?', options: ['Moo', 'Quack', 'Meow'], correct: 1 },
-  { prompt: 'Who is watching you right now?', options: ['Nobody', 'A ghost', 'The teacher'], correct: 2 },
+  { prompt: 'What is the #1 rule of this exam?', options: ['Own paper only', "Everyone's paper", 'The ceiling'], correct: 0 , note: 'Rule #1: eyes on YOUR OWN paper' },
+  { prompt: 'You drop your pencil. What now?', options: ['Scream loudly', 'Ask quietly', 'Eat it'], correct: 1 , note: 'Dropped pencil? Ask quietly' },
+  { prompt: 'What sound does a duck make?', options: ['Moo', 'Quack', 'Meow'], correct: 1 , note: 'Duck says QUACK' },
+  { prompt: 'Who is watching you right now?', options: ['Nobody', 'A ghost', 'The teacher'], correct: 2 , note: 'The teacher watches everybody' },
 ];
 
 /** one exam's worth: random questions, random order, shuffled options (correct index follows its option) */
@@ -60,6 +62,7 @@ export function dealQuestions(pool: readonly Question[], count: number, rng: () 
       prompt: q.prompt,
       options: [q.options[perm[0]], q.options[perm[1]], q.options[perm[2]]] as [string, string, string],
       correct: perm.indexOf(q.correct) as 0 | 1 | 2,
+      note: q.note,
     };
   });
 }

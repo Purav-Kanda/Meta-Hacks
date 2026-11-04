@@ -22,11 +22,13 @@ import {
 } from '@iwsdk/core';
 import { ClassroomSystem } from './classroom.js';
 import { ExamSystem } from './exam-system.js';
-import { PATROL } from './teacher-brain.js';
+import { PATROL, PATROL_OUTER } from './teacher-brain.js';
 import { TeacherAI } from './teacher-ai.js';
-import { ACTIVE_TUNING } from './tuning.js';
+import { ACTIVE_TUNING, BUILT_VISION_RANGE, onTuningChange } from './tuning.js';
 import { inCone } from './vision.js';
 import { PuffPool } from './effects.js';
+import { roundStats } from './progress.js';
+import { SEATING } from './seating.js';
 
 const CONE_CALM = 0xffe066; // she has not spotted you
 const CONE_ALERT = 0xff9f1c; // you are inside her cone
@@ -45,9 +47,9 @@ interface TeacherParts {
   brows: Group;
 }
 
-function buildTeacherBody(): TeacherParts {
+function buildTeacherBody(suitHex = 0x118ab2): TeacherParts {
   const body = new Group();
-  const suit = paint(0x118ab2);
+  const suit = paint(suitHex);
 
   const torso = new Mesh(new CapsuleGeometry(0.16, 0.55, 4, 10), suit);
   torso.position.y = 0.82;
@@ -86,18 +88,26 @@ function buildTeacherBody(): TeacherParts {
   const black = new MeshStandardMaterial({ color: 0x111111, roughness: 0.3 });
   const frame = paint(0xff6bb5);
   for (const sx of [-1, 1]) {
-    const eye = new Mesh(new SphereGeometry(0.075, 12, 10), white);
-    eye.position.set(sx * 0.09, 1.4, -0.17);
+    const eye = new Mesh(new SphereGeometry(0.065, 12, 10), white);
+    eye.position.set(sx * 0.09, 1.4, -0.19);
     body.add(eye);
-    const pupil = new Mesh(new SphereGeometry(0.035, 10, 8), black);
-    pupil.position.set(sx * 0.09, 1.4, -0.235);
+    const pupil = new Mesh(new SphereGeometry(0.032, 10, 8), black);
+    pupil.position.set(sx * 0.09, 1.4, -0.243);
     body.add(pupil);
-    const rim = new Mesh(new TorusGeometry(0.09, 0.012, 8, 20), frame);
-    rim.position.set(sx * 0.09, 1.4, -0.205);
+    // glasses sit clearly in front of the face so they never sink into it
+    const rim = new Mesh(new TorusGeometry(0.08, 0.011, 8, 20), frame);
+    rim.position.set(sx * 0.09, 1.4, -0.285);
     body.add(rim);
+    const arm = new Mesh(new BoxGeometry(0.012, 0.012, 0.23), frame);
+    arm.position.set(sx * 0.19, 1.4, -0.175);
+    arm.rotation.y = sx * 0.2;
+    body.add(arm);
   }
+  const bridge = new Mesh(new BoxGeometry(0.04, 0.012, 0.012), frame);
+  bridge.position.set(0, 1.405, -0.285);
+  body.add(bridge);
   const mouth = new Mesh(new TorusGeometry(0.05, 0.01, 6, 12, Math.PI), black);
-  mouth.position.set(0, 1.3, -0.21);
+  mouth.position.set(0, 1.3, -0.218);
   body.add(mouth); // upside-down arc = permanent frown, she is not fun at parties
 
   // angry eyebrows, only visible when she is mad
@@ -181,46 +191,36 @@ function buildCone(range: number, halfAngle: number): Mesh {
   return cone;
 }
 
-export class TeacherSystem extends createSystem({}) {
-  /** later pieces read these (peek, phone, fruit, fake email) */
-  ai = new TeacherAI(PATROL, ACTIVE_TUNING);
+/** One teacher: her brain plus everything drawn for her (body, vision cone, "!" and "?" bubbles). */
+class TeacherActor {
+  readonly root = new Group();
+  readonly body: Group;
+  readonly skin: MeshStandardMaterial;
+  readonly brows: Group;
+  readonly exclaim: Mesh;
+  readonly question: Mesh;
+  readonly coneMesh: Mesh;
+  readonly coneMat: MeshBasicMaterial;
+  readonly rimMat: LineBasicMaterial;
   seesPlayer = false;
-
-  private root!: Group;
-  private body!: Group;
-  private skin!: MeshStandardMaterial;
-  private brows!: Group;
-  private exclaim!: Mesh;
-  private question!: Mesh;
-  /** dust/smoke puffs (her charge, landing fruit); other systems may emit into it */
-  puffs!: PuffPool;
-  private puffTimer = 0;
-  private wasRush = false;
-  private camQ = new Quaternion();
-  /** set by other systems (phone glow) to widen how far she sees; eased in the cone drawing */
-  rangeScale = 1;
   private shownScale = 1;
-  private coneMesh!: Mesh;
-  private coneMat!: MeshBasicMaterial;
-  private rimMat!: LineBasicMaterial;
-  private head = new Vector3();
-  private clock = 0;
   private shownMode = '';
   private shownSees = false;
+  private wasRush = false;
+  private puffTimer = 0;
 
-  init(): void {
-    const classroom = this.world.getSystem(ClassroomSystem);
-    if (!classroom) throw new Error('ClassroomSystem must be registered before TeacherSystem');
-    if (!this.world.getSystem(ExamSystem)) throw new Error('ExamSystem must be registered before TeacherSystem');
-
-    this.root = new Group();
-    this.root.name = 'Teacher';
-    const parts = buildTeacherBody();
+  constructor(
+    readonly ai: TeacherAI,
+    name: string,
+    suitHex: number,
+  ) {
+    this.root.name = name;
+    const parts = buildTeacherBody(suitHex);
     this.body = parts.body;
     this.skin = parts.skin;
     this.brows = parts.brows;
     this.root.add(this.body);
-    const cone = buildCone(ACTIVE_TUNING.visionRange, ACTIVE_TUNING.visionHalfAngle);
+    const cone = buildCone(BUILT_VISION_RANGE, ACTIVE_TUNING.visionHalfAngle);
     this.coneMesh = cone;
     this.coneMat = cone.material as MeshBasicMaterial;
     this.rimMat = (cone.children[0] as LineLoop).material as LineBasicMaterial;
@@ -229,71 +229,46 @@ export class TeacherSystem extends createSystem({}) {
     this.root.add(this.exclaim);
     this.question = buildExclaim('?', '#3a86ff');
     this.root.add(this.question);
-
-    this.root.position.set(this.ai.x, 0, this.ai.z);
-    this.root.rotation.y = this.ai.yaw;
-    this.world.createTransformEntity(this.root, classroom.roomEntity);
-    // puffs live in room space (not under her) so they stay behind when she moves
-    this.puffs = new PuffPool(classroom.roomEntity.object3D!, 32);
+    this.root.position.set(ai.x, 0, ai.z);
+    this.root.rotation.y = ai.yaw;
   }
 
-  update(delta: number): void {
-    // clamp so a tab switch (huge delta) cannot teleport her across the room
-    const dt = Math.min(delta, 0.1);
-    this.clock += dt;
-    const exam = this.world.getSystem(ExamSystem)!.exam;
-
-    this.world.camera.getWorldPosition(this.head);
-    const events = this.ai.update(dt, {
-      headX: this.head.x,
-      headZ: this.head.z,
-      playing: exam.phase === 'playing',
-      evidence: exam.evidence.active,
-      rangeScale: this.rangeScale,
-    });
-    if (events.warned) exam.addWarning();
-
-    this.root.position.x = this.ai.x;
-    this.root.position.z = this.ai.z;
-    this.root.rotation.y = this.ai.yaw;
+  update(dt: number, clock: number, head: Vector3, headWorld: Vector3, rangeScale: number, puffs: PuffPool): void {
+    const ai = this.ai;
+    this.root.position.x = ai.x;
+    this.root.position.z = ai.z;
+    this.root.rotation.y = ai.yaw;
     // little waddle while walking, a much angrier one while charging
-    const fast = this.ai.mode === 'rush';
+    const fast = ai.mode === 'rush';
     const rate = fast ? 13 : 7;
-    this.body.position.y = this.ai.walking ? Math.abs(Math.sin(this.clock * rate)) * (fast ? 0.06 : 0.035) : 0;
-    this.body.rotation.z = this.ai.walking ? Math.sin(this.clock * rate) * (fast ? 0.1 : 0.05) : 0;
+    this.body.position.y = ai.walking ? Math.abs(Math.sin(clock * rate)) * (fast ? 0.06 : 0.035) : 0;
+    this.body.rotation.z = ai.walking ? Math.sin(clock * rate) * (fast ? 0.1 : 0.05) : 0;
 
-    const sees = inCone(
-      this.ai.x,
-      this.ai.z,
-      this.ai.yaw,
-      this.head.x,
-      this.head.z,
-      ACTIVE_TUNING.visionRange * this.rangeScale,
-      ACTIVE_TUNING.visionHalfAngle,
-    );
+    const sees = inCone(ai.x, ai.z, ai.yaw, head.x, head.z, ACTIVE_TUNING.visionRange * rangeScale, ACTIVE_TUNING.visionHalfAngle);
     this.seesPlayer = sees;
     // ease the drawn cone toward the current range so the glow visibly stretches it
-    this.shownScale += (this.rangeScale - this.shownScale) * Math.min(1, dt * 6);
-    this.coneMesh.scale.set(this.shownScale, 1, this.shownScale);
-    if (this.ai.mode !== this.shownMode || sees !== this.shownSees) {
-      this.shownMode = this.ai.mode;
+    this.shownScale += (rangeScale - this.shownScale) * Math.min(1, dt * 6);
+    const k = this.shownScale * (ACTIVE_TUNING.visionRange / BUILT_VISION_RANGE);
+    this.coneMesh.scale.set(k, 1, k);
+    if (ai.mode !== this.shownMode || sees !== this.shownSees) {
+      this.shownMode = ai.mode;
       this.shownSees = sees;
-      this.applyLook(this.ai.mode, sees);
+      this.applyLook(ai.mode, sees, puffs);
     }
-    if (this.exclaim.visible) this.exclaim.lookAt(this.head); // "!" always faces the player
-    if (this.question.visible) this.question.lookAt(this.head);
+    if (this.exclaim.visible) this.exclaim.lookAt(headWorld); // "!" always faces the player
+    if (this.question.visible) this.question.lookAt(headWorld);
 
     // charging: kick up smoke behind her feet, like a car pulling away
-    if (this.ai.mode === 'rush' && this.ai.walking) {
+    if (ai.mode === 'rush' && ai.walking) {
       this.puffTimer -= dt;
       if (this.puffTimer <= 0) {
         this.puffTimer = 0.06;
-        const fx = -Math.sin(this.ai.yaw);
-        const fz = -Math.cos(this.ai.yaw);
-        this.puffs.emit(
-          this.ai.x - fx * 0.14 + (Math.random() - 0.5) * 0.1,
+        const fx = -Math.sin(ai.yaw);
+        const fz = -Math.cos(ai.yaw);
+        puffs.emit(
+          ai.x - fx * 0.14 + (Math.random() - 0.5) * 0.1,
           0.06,
-          this.ai.z - fz * 0.14 + (Math.random() - 0.5) * 0.1,
+          ai.z - fz * 0.14 + (Math.random() - 0.5) * 0.1,
           0.2,
           0.9,
           -fx * 0.35,
@@ -302,22 +277,121 @@ export class TeacherSystem extends createSystem({}) {
         );
       }
     }
-    this.world.camera.getWorldQuaternion(this.camQ);
-    this.puffs.update(dt, this.camQ);
   }
 
-  private applyLook(mode: string, sees: boolean): void {
+  private applyLook(mode: string, sees: boolean, puffs: PuffPool): void {
     const angry = mode === 'rush' || mode === 'lecture';
     const glare = mode === 'glare';
     this.skin.color.setHex(angry ? SKIN_ANGRY : glare ? SKIN_GLARE : SKIN_NORMAL);
     this.brows.visible = angry || glare;
     this.exclaim.visible = angry;
     this.question.visible = mode === 'distracted';
-    if (mode === 'rush' && !this.wasRush) this.puffs.burst(this.ai.x, this.ai.z, 9, 0.2, 0.9); // the "screech" at the start of a charge
+    if (mode === 'rush' && !this.wasRush) puffs.burst(this.ai.x, this.ai.z, 9, 0.2, 0.9); // the "screech" at the start of a charge
     this.wasRush = mode === 'rush';
     const cone = angry ? CONE_ANGRY : glare || sees ? CONE_ALERT : CONE_CALM;
     this.coneMat.color.setHex(cone);
     this.coneMat.opacity = angry ? 0.5 : sees || glare ? 0.45 : 0.38;
     this.rimMat.color.setHex(angry ? 0xffb3ad : 0xfff7b0);
   }
+}
+
+const busy = (a: TeacherAI): boolean => a.mode === 'rush' || a.mode === 'glare' || a.mode === 'lecture';
+
+export class TeacherSystem extends createSystem({}) {
+  /** the first teacher; always in the room. Other pieces read this one */
+  private readonly first = new TeacherActor(new TeacherAI(PATROL, ACTIVE_TUNING), 'Teacher', 0x118ab2);
+  /** the second teacher, only in the room in Not Easy */
+  private readonly second = new TeacherActor(
+    new TeacherAI(PATROL_OUTER, ACTIVE_TUNING, { right: 8, left: 3, distract: 0 }),
+    'Teacher2',
+    0x7b2cbf,
+  );
+  get ai(): TeacherAI {
+    return this.first.ai;
+  }
+  /** every teacher currently in the room (reused array, do not modify) */
+  readonly ais: TeacherAI[] = [this.first.ai];
+  seesPlayer = false;
+  /** any teacher charging at you / handing out a warning this frame */
+  anyRush = false;
+  anyWarned = false;
+
+  /** dust/smoke puffs (her charge, landing fruit); other systems may emit into it */
+  puffs!: PuffPool;
+  /** set by other systems (phone glow) to widen how far they see */
+  rangeScale = 1;
+  private head = new Vector3();
+  private headWorld = new Vector3();
+  private camQ = new Quaternion();
+  private clock = 0;
+  private secondIn = false;
+
+  init(): void {
+    const classroom = this.world.getSystem(ClassroomSystem);
+    if (!classroom) throw new Error('ClassroomSystem must be registered before TeacherSystem');
+    if (!this.world.getSystem(ExamSystem)) throw new Error('ExamSystem must be registered before TeacherSystem');
+    this.world.createTransformEntity(this.first.root, classroom.roomEntity);
+    this.world.createTransformEntity(this.second.root, classroom.roomEntity);
+    this.second.root.visible = false;
+    // puffs live in room space (not under her) so they stay behind when she moves
+    this.puffs = new PuffPool(classroom.roomEntity.object3D!, 32);
+    onTuningChange(() => this.syncCount());
+  }
+
+  /** put the second teacher in or out of the room to match the difficulty */
+  private syncCount(): void {
+    const want = ACTIVE_TUNING.teacherCount >= 2;
+    if (want === this.secondIn) return;
+    this.secondIn = want;
+    this.second.root.visible = want;
+    this.ais.length = 0;
+    this.ais.push(this.first.ai);
+    if (want) {
+      this.second.ai.reset();
+      this.ais.push(this.second.ai);
+    }
+  }
+
+  update(delta: number): void {
+    // clamp so a tab switch (huge delta) cannot teleport her across the room
+    const dt = Math.min(delta, 0.1);
+    this.clock += dt;
+    const exam = this.world.getSystem(ExamSystem)!.exam;
+
+    this.world.camera.getWorldPosition(this.headWorld);
+    // she lives in room coordinates; you sit at the world origin, so add your seat's offset
+    this.head.copy(this.headWorld);
+    this.head.x += SEATING.dx;
+    this.head.z += SEATING.dz;
+    const ctx = this.ctx;
+    ctx.headX = this.head.x;
+    ctx.headZ = this.head.z;
+    ctx.playing = exam.phase === 'playing';
+    ctx.rangeScale = this.rangeScale;
+    this.anyWarned = false;
+    for (let i = 0; i < this.ais.length; i++) {
+      const ai = this.ais[i];
+      // only one teacher deals with a cheater at a time: ignore evidence while the other one is busy with it
+      let other = false;
+      for (let j = 0; j < this.ais.length; j++) if (j !== i && busy(this.ais[j])) other = true;
+      ctx.evidence = exam.evidence.active && !other;
+      const events = ai.update(dt, ctx);
+      if (events.forgave && exam.phase === 'playing') roundStats.hidInTime += 1;
+      if (events.warned) {
+        exam.addWarning();
+        this.anyWarned = true;
+      }
+    }
+
+    this.first.update(dt, this.clock, this.head, this.headWorld, this.rangeScale, this.puffs);
+    if (this.secondIn) this.second.update(dt, this.clock, this.head, this.headWorld, this.rangeScale, this.puffs);
+    this.seesPlayer = this.first.seesPlayer || (this.secondIn && this.second.seesPlayer);
+    this.anyRush = false;
+    for (let i = 0; i < this.ais.length; i++) if (this.ais[i].mode === 'rush') this.anyRush = true;
+
+    this.world.camera.getWorldQuaternion(this.camQ);
+    this.puffs.update(dt, this.camQ);
+  }
+
+  private readonly ctx = { headX: 0, headZ: 0, playing: false, evidence: false, rangeScale: 1 };
 }

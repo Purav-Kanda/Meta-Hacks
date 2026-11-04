@@ -32,9 +32,82 @@ function makeDotTexture(): CanvasTexture {
   return tex;
 }
 
-export function stylePointers(world: World): () => boolean {
+/** cartoon glove for filming (?demo): pointing hand normally, pinching hand while pressed. The fingertip is the texture center. */
+function makeGloveTexture(pinch: boolean): CanvasTexture {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 256;
+  const g = cv.getContext('2d')!;
+  g.translate(128, 128);
+  g.scale(0.62, 0.62);
+  g.rotate(-0.4);
+  g.lineJoin = 'round';
+  g.lineCap = 'round';
+  const glove = (draw: () => void): void => {
+    g.fillStyle = '#ffffff';
+    g.strokeStyle = '#2a2a3a';
+    g.lineWidth = 9;
+    draw();
+    g.fill();
+    g.stroke();
+  };
+  // cuff
+  glove(() => {
+    g.beginPath();
+    g.roundRect(-44, 150, 88, 34, 10);
+  });
+  // palm
+  glove(() => {
+    g.beginPath();
+    g.roundRect(-52, 70, 104, 92, 30);
+  });
+  if (!pinch) {
+    // index finger pointing at the dot, curled-in fingers drawn as a bumpy row
+    glove(() => {
+      g.beginPath();
+      g.roundRect(-15, 6, 30, 100, 15);
+    });
+    for (const x of [20, 38]) {
+      glove(() => {
+        g.beginPath();
+        g.roundRect(x - 2, 62, 26, 46, 13);
+      });
+    }
+    glove(() => {
+      g.beginPath();
+      g.ellipse(-48, 96, 14, 28, -0.5, 0, Math.PI * 2);
+    });
+  } else {
+    // thumb and index meet at the dot
+    glove(() => {
+      g.beginPath();
+      g.roundRect(-4, 4, 28, 82, 14);
+    });
+    glove(() => {
+      g.beginPath();
+      g.ellipse(-26, 62, 15, 42, 0.55, 0, Math.PI * 2);
+    });
+    // squeeze sparkle
+    g.strokeStyle = '#ffd400';
+    g.lineWidth = 9;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      g.beginPath();
+      g.moveTo(Math.cos(a) * 24, Math.sin(a) * 24);
+      g.lineTo(Math.cos(a) * 46, Math.sin(a) * 46);
+      g.stroke();
+    }
+  }
+  const tex = new CanvasTexture(cv);
+  tex.anisotropy = 16;
+  tex.colorSpace = SRGBColorSpace;
+  return tex;
+}
+
+export function stylePointers(world: World, glove = false): () => boolean {
   const done = new Set<string>();
   let dot: CanvasTexture | null = null;
+  const gloveUp = glove ? makeGloveTexture(false) : null;
+  const gloveDown = glove ? makeGloveTexture(true) : null;
   // returns true once both hands are styled so the caller can stop retrying
   return () => {
     try {
@@ -48,15 +121,21 @@ export function stylePointers(world: World): () => boolean {
         col.setHex(RAY_COLOR);
         // the SDK calls color.copy(white|blue) on select start/end; remap those to our colors
         col.copy = function (this: Color, src: Color) {
+          const pressed = src.getHex() === SDK_PRESSED_HEX;
+          if (gloveDown && gloveUp && cursor) {
+            cursor.material.map = pressed ? gloveDown : gloveUp;
+            cursor.material.needsUpdate = true;
+          }
           // setHex, not set(Color): Color.set(color) calls copy() again and would loop forever
-          return this.setHex(src.getHex() === SDK_PRESSED_HEX ? RAY_PRESSED : RAY_COLOR);
+          return this.setHex(pressed ? RAY_PRESSED : RAY_COLOR);
         } as typeof col.copy;
-        rayMesh.scale.set(RAY_THICKNESS, RAY_THICKNESS, 1);
+        rayMesh.scale.set(glove ? 3 : RAY_THICKNESS, glove ? 3 : RAY_THICKNESS, 1);
         if (cursor) {
           dot ??= makeDotTexture();
-          cursor.material.map = dot;
+          cursor.material.map = gloveUp ?? dot;
+          cursor.material.transparent = true;
           cursor.material.needsUpdate = true;
-          cursor.scale.setScalar(1.6);
+          cursor.scale.setScalar(glove ? Number(new URLSearchParams(window.location.search).get('glove')) || 3.4 : 1.6);
         }
         done.add(hand);
       }

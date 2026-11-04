@@ -19,3 +19,18 @@ export const PhoneButton = createComponent('PhoneButton', {
 export const FruitButton = createComponent('FruitButton', {
   kind: { type: Types.Int8, default: 0 },
 });
+
+/** The grabbable fruit (one entity per kind). kind = which fruit */
+export const FruitGrab = createComponent('FruitGrab', {
+  kind: { type: Types.Int8, default: 0 },
+});
+
+/** The grabbable crib sheet */
+export const CribGrab = createComponent('CribGrab', {
+  id: { type: Types.Int8, default: 0 },
+});
+
+/** Toys you can poke. kind: 0 = the desk bell, 1.. = classmate number kind-1 */
+export const ToyButton = createComponent('ToyButton', {
+  kind: { type: Types.Int8, default: 0 },
+});
