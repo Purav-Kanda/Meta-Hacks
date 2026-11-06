@@ -114,9 +114,24 @@ const COL = {
 // A cartoon kid: capsule body, ball head, giant googly eyes.
 function makeKid(shirt: number, skin: number, hair: number): Group {
   const kid = new Group();
-  const torso = new Mesh(new CapsuleGeometry(0.17, 0.3, 4, 10), flat(shirt));
-  torso.position.y = 0.55;
+  // the body starts on top of the chair seat (top at y=0.475), not inside it: a short torso, thighs on the
+  // seat and shins hanging down in front of the chair
+  const torso = new Mesh(new CapsuleGeometry(0.17, 0.12, 4, 10), flat(shirt));
+  torso.position.y = 0.475 + 0.17 + 0.06;
   kid.add(torso);
+  const pants = flat(0x2b3a67);
+  for (const lx of [-0.09, 0.09]) {
+    const thigh = new Mesh(new CapsuleGeometry(0.075, 0.2, 4, 8), pants);
+    thigh.rotation.x = Math.PI / 2; // lying along z, knees toward the desk
+    thigh.position.set(lx, 0.475 + 0.075, -0.17);
+    kid.add(thigh);
+    const shin = new Mesh(new CapsuleGeometry(0.065, 0.3, 4, 8), pants);
+    shin.position.set(lx, 0.27, -0.32);
+    kid.add(shin);
+    const shoe = new Mesh(new BoxGeometry(0.1, 0.06, 0.18), flat(0xf4f4f4));
+    shoe.position.set(lx, 0.03, -0.35);
+    kid.add(shoe);
+  }
 
   // the head parts live in their own group so a classmate can turn and nod their head without moving the body
   const headG = new Group();
