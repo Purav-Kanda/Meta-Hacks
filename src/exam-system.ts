@@ -1,6 +1,7 @@
-import { COMFORT } from './seating.js';
+import { SETTINGS, onSettingsChange, popupScale, timeFactor } from './settings.js';
 import { applyTuning, SEAT_MODS } from './tuning.js';
 import { TUTORIAL } from './tutorial.js';
+import { SCARE } from './scare.js';
 import { SEAT } from './seat.js';
 import { TITLE } from './title.js';
 import { CHALLENGES, MENU, ROUND, WEEK, endlessStage, planFor, type MenuItem, type RoundPlan } from './modes.js';
@@ -18,7 +19,6 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
-  PokeInteractable,
   Pressed,
   RayInteractable,
   SRGBColorSpace,
@@ -40,10 +40,6 @@ const BTN_COLORS = ['#ff4d6d', '#3a86ff', '#06b57f'];
 const FONT = '"Comic Sans MS", "Chalkboard SE", "Trebuchet MS", sans-serif';
 // tilt (radians) from lying flat; ~29 deg is readable from a seat without the board blocking the room
 const SHEET_TILT = 0.5;
-// the whole easel is drawn bigger than its layout numbers (about its bottom edge on the desk) so the answer
-// buttons are easier to hit with a hand ray
-const RIG_SCALE = 1; // (was 1.12 for bigger buttons; reverted)
-const RIG_POS = { x: 0, y: 0.785, z: -0.279 };
 
 // TEMPORARY: a button on the desk that fakes "a cheat is out" so the catch system can be tried
 // before the real cheats (peek, phone, fruit, email) exist. Flip to false when they land.
@@ -135,12 +131,7 @@ export class ExamSystem extends createSystem({
     const sheet = new Group();
     sheet.name = 'ExamSheet';
     sheet.rotation.x = -Math.PI / 2 + SHEET_TILT;
-    sheet.position.set(0, 0.9 - RIG_POS.y, -0.49 - RIG_POS.z);
-    const rig = new Group();
-    rig.name = 'ExamRig';
-    rig.position.set(RIG_POS.x, RIG_POS.y, RIG_POS.z);
-    rig.scale.setScalar(RIG_SCALE);
-    const rigEntity = this.world.createTransformEntity(rig, classroom.seatEntity);
+    sheet.position.set(0, 0.9, -0.49);
 
     const s = makeCanvasTex(Math.round(SHEET_W * PX_PER_M), Math.round(SHEET_H * PX_PER_M));
     this.sheetCtx = s.g;
@@ -159,15 +150,15 @@ export class ExamSystem extends createSystem({
     backing.position.z = -0.012;
     sheet.add(backing);
 
-    const sheetEntity = this.world.createTransformEntity(sheet, rigEntity);
+    const sheetEntity = this.world.createTransformEntity(sheet, classroom.seatEntity);
 
     // two stubby legs propping the back of the board against the desk
     const legMat = new MeshStandardMaterial({ color: 0x6a4cff, roughness: 1 });
     for (const lx of [-0.22, 0.22]) {
       const leg = new Mesh(new CylinderGeometry(0.012, 0.012, 0.26, 8), legMat);
-      leg.position.set(lx, 0.8875 - RIG_POS.y, -0.775 - RIG_POS.z);
+      leg.position.set(lx, 0.8875, -0.775);
       leg.rotation.x = 0.523;
-      this.world.createTransformEntity(leg, rigEntity);
+      this.world.createTransformEntity(leg, classroom.seatEntity);
     }
 
     // three answer buttons, each its own entity so the input system can hover/press them
@@ -184,7 +175,6 @@ export class ExamSystem extends createSystem({
       const ent = this.world.createTransformEntity(mesh, sheetEntity);
       ent.addComponent(ExamButton, { slot: i });
       ent.addComponent(RayInteractable);
-      ent.addComponent(PokeInteractable);
     }
 
     // "WARNING 1 / 3!" banner that pops up in front of you for a moment
@@ -228,7 +218,6 @@ export class ExamSystem extends createSystem({
       const dEnt = this.world.createTransformEntity(this.debugMesh, classroom.seatEntity);
       dEnt.addComponent(ExamButton, { slot: 3 });
       dEnt.addComponent(RayInteractable);
-      dEnt.addComponent(PokeInteractable);
       this.paintDebugButton();
     }
 
@@ -245,7 +234,14 @@ export class ExamSystem extends createSystem({
       this.onButtonPressed(e.getValue(ExamButton, 'slot') as number);
     });
 
+    onSettingsChange(() => this.refresh(true));
     this.refresh(true);
+  }
+
+  /** the settings panel hides the sticker book / report card while it is open */
+  setBookHidden(hidden: boolean): void {
+    if (hidden) this.panel.hide();
+    else this.updatePanel();
   }
 
   private onButtonPressed(slot: number): void {
@@ -270,7 +266,7 @@ export class ExamSystem extends createSystem({
       this.beginRound(planFor(item.id, { challengeIdx: this.nextChallenge(), weekDay: this.progress.data.weekDay }));
       return;
     }
-    if (SEAT.holding) return; // the seat draw is still on screen
+    if (SEAT.holding || SCARE.active) return; // the seat draw is still on screen / she is lunging at you
     if (ROUND.mode === 'tutorial' && !TUTORIAL.canAnswer(this.exam.cursor, roundStats)) {
       TUTORIAL.nudgeSeq += 1; // the coach card shakes: try the cheat first
       sfx.click();
@@ -283,7 +279,6 @@ export class ExamSystem extends createSystem({
   }
 
   update(delta: number): void {
-    COMFORT.menu = this.exam.phase !== 'playing';
     if (this.lockLeft > 0) {
       this.lockLeft -= delta;
       if (this.lockLeft <= 0) {
@@ -307,10 +302,10 @@ export class ExamSystem extends createSystem({
       } else {
         // bouncy pop-in with a little wobble, then shrink away at the end
         const age = BANNER_SECONDS - this.bannerLeft;
-        const pop = age < 0.3 ? 1.2 * Math.sin((age / 0.3) * (Math.PI / 2)) : age < 0.45 ? 1.2 - 0.2 * ((age - 0.3) / 0.15) : 1;
+        const pop = SETTINGS.calm ? 1 : age < 0.3 ? 1.2 * Math.sin((age / 0.3) * (Math.PI / 2)) : age < 0.45 ? 1.2 - 0.2 * ((age - 0.3) / 0.15) : 1;
         const out = this.bannerLeft < 0.25 ? this.bannerLeft / 0.25 : 1;
-        this.bannerMesh.scale.setScalar(Math.max(0.01, pop * out));
-        this.bannerMesh.rotation.z = Math.sin(age * 28) * 0.06 * Math.max(0, 1 - age / 0.7);
+        this.bannerMesh.scale.setScalar(Math.max(0.01, pop * out) * popupScale());
+        this.bannerMesh.rotation.z = SETTINGS.calm ? 0 : Math.sin(age * 28) * 0.06 * Math.max(0, 1 - age / 0.7);
       }
     }
     this.updateCard(delta);
@@ -347,7 +342,7 @@ export class ExamSystem extends createSystem({
     applyTuning(plan.base, plan.intensity, plan.overrides);
     const r = this.exam.rules;
     r.passMark = plan.passMark;
-    r.seconds = plan.seconds;
+    r.seconds = Math.round(plan.seconds * timeFactor());
     r.maxWarnings = plan.maxWarnings;
     r.questionCount = plan.questions;
     r.endless = plan.endless;
@@ -417,9 +412,9 @@ export class ExamSystem extends createSystem({
       return;
     }
     const age = CARD_SECONDS - this.cardLeft;
-    const pop = age < 0.3 ? 1.15 * Math.sin((age / 0.3) * (Math.PI / 2)) : age < 0.45 ? 1.15 - 0.15 * ((age - 0.3) / 0.15) : 1;
+    const pop = SETTINGS.calm ? 1 : age < 0.3 ? 1.15 * Math.sin((age / 0.3) * (Math.PI / 2)) : age < 0.45 ? 1.15 - 0.15 * ((age - 0.3) / 0.15) : 1;
     const out = this.cardLeft < 0.3 ? this.cardLeft / 0.3 : 1;
-    this.cardMesh.scale.setScalar(Math.max(0.01, pop * out));
+    this.cardMesh.scale.setScalar(Math.max(0.01, pop * out) * popupScale());
   }
 
   private menuLabel(item: MenuItem): string {
@@ -719,11 +714,16 @@ export class ExamSystem extends createSystem({
       const w = g.canvas.width;
       const h = g.canvas.height;
       g.clearRect(0, 0, w, h);
-      g.fillStyle = BTN_COLORS[i];
+      g.fillStyle = SETTINGS.contrast ? '#0a0a0a' : BTN_COLORS[i];
       g.beginPath();
       g.roundRect(4, 4, w - 8, h - 8, 36);
       g.fill();
-      g.fillStyle = '#fff';
+      if (SETTINGS.contrast) {
+        g.strokeStyle = '#ffe500';
+        g.lineWidth = 10;
+        g.stroke();
+      }
+      g.fillStyle = SETTINGS.contrast ? '#ffe500' : '#fff';
       let fs = 46;
       g.font = `bold ${fs}px ${FONT}`;
       while (g.measureText(label).width > w - 90 && fs > 26) {

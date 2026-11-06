@@ -17,16 +17,12 @@ Debug helpers: add `?debug` to the URL for `window.__game`, and `?debug&view=top
 
 `npm run typecheck` checks types, `npm run build` makes the `dist` folder for hosting.
 
-## Build pieces
+## What is in it
 
-1. [x] Project runs, classroom + desk + exam paper
-2. [x] Answering: exam sheet, A/B/C buttons (ray pinch or finger poke), timer, pass/fail
-3. [x] Teacher patrol, pauses to glare at you, visible vision cone (yellow = calm, orange = you are in it)
-4. [x] Catching, angry rush, 3 warnings (temporary CHEAT test button on the desk until real cheats land)
-5. [x] Neighbor peek (head turn) (peek: look at a neighbor, press PEEK, HIDE dodges while she rushes)
-6. [x] Phone (tap to raise, glow = evidence + longer teacher sight, ASK buffers 2-4 s, 20 s cooldown, confiscated on warning)
-7. [x] Thrown fruit (random fruit, 2 far-corner zones, she walks over and stares; 4 per round) + smoke trail, popups, fidgeting kids
-8. [x] Grab-and-throw fruit + sounds (fake email dropped)
-9. [x] Easy / Not Easy modes (second teacher)
-10. [ ] Polish: tutorial, letter grade, remove debug button
-11. [ ] Submit prep
+- Seated classroom exam: answer A/B/C, the teacher patrols, you cheat to pass (peek at neighbours, phone, crib sheet, thrown snacks).
+- Modes: Training Day tutorial, Easy, Not Easy, Rush, Endless, School Week, Cheat Challenges, stickers and best scores.
+- Settings gear (between rounds): sound, music, big pop-up text, high contrast, relaxed mode, calm motion, throw assist. Saved in the browser.
+- Hands only: point and pinch, or poke with a finger. Controllers also work but are never required.
+- No accounts, no network calls, no tracking. Only settings and progress are stored, in the browser's localStorage.
+
+URL options for development: `?debug`, `?notitle`, `?fps`, `?bot`, `?cam=orbit|top|front|corner`.

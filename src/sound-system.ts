@@ -2,6 +2,7 @@ import { Entity, Pressed, createSystem } from '@iwsdk/core';
 import { ExamSystem } from './exam-system.js';
 import { PhoneSystem } from './phone-system.js';
 import { sfx } from './sfx.js';
+import { SETTINGS } from './settings.js';
 import { TeacherSystem } from './teacher-system.js';
 
 /** Watches the other systems and plays a sound when something changes. (Throw/land sounds are played by FruitSystem.) */
@@ -43,7 +44,7 @@ export class SoundSystem extends createSystem({
     // music plays during the exam and pauses while any teacher is angry
     let angry = false;
     for (const t of ts.ais) if (t.mode === 'rush' || t.mode === 'lecture' || t.mode === 'glare') angry = true;
-    sfx.music(ex.phase === 'playing' && !angry);
+    sfx.music(SETTINGS.music && ex.phase === 'playing' && !angry);
 
     if (mode !== this.mode) {
       if (mode === 'rush') sfx.screech();

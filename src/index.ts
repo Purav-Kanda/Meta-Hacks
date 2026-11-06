@@ -16,8 +16,13 @@ import { LivingSystem } from './living-system.js';
 import { SoundSystem } from './sound-system.js';
 import { sfx } from './sfx.js';
 import { guardMouse, mouseStats } from './mouse-guard.js';
+import { SettingsSystem } from './settings-system.js';
+import { SCARE } from './scare.js';
+import { loadSettings } from './settings.js';
 import { stylePointers } from './pointer-style.js';
 import { TeacherSystem } from './teacher-system.js';
+
+loadSettings();
 
 World.create(
   document.getElementById('scene-container') as HTMLDivElement,
@@ -32,6 +37,7 @@ World.create(
   world.registerSystem(FruitSystem);
   world.registerSystem(LivingSystem);
   world.registerSystem(SeatSystem);
+  world.registerSystem(SettingsSystem);
   world.registerSystem(TutorialSystem);
   world.registerSystem(TitleSystem);
   world.registerSystem(SoundSystem);
@@ -68,6 +74,8 @@ World.create(
       classroom: world.getSystem(ClassroomSystem),
       title: TITLE,
       fruit: world.getSystem(FruitSystem),
+      settings: world.getSystem(SettingsSystem),
+      scare: SCARE,
       sfx,
       world,
     };

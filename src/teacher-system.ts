@@ -29,6 +29,9 @@ import { inCone } from './vision.js';
 import { PuffPool } from './effects.js';
 import { roundStats } from './progress.js';
 import { SEATING } from './seating.js';
+import { SCARE, scareDuration, scarePose, scareTarget } from './scare.js';
+import { SETTINGS } from './settings.js';
+import { sfx } from './sfx.js';
 
 const CONE_CALM = 0xffe066; // she has not spotted you
 const CONE_ALERT = 0xff9f1c; // you are inside her cone
@@ -64,7 +67,7 @@ function buildTeacherBody(suitHex = 0x118ab2): TeacherParts {
     leg.position.set(sx * 0.075, 0.15, 0);
     body.add(leg);
     const arm = new Mesh(new CapsuleGeometry(0.05, 0.38, 3, 6), suit);
-    arm.position.set(sx * 0.24, 0.82, 0);
+    arm.position.set(sx * 0.2, 0.82, 0);
     arm.rotation.z = -sx * 0.18;
     body.add(arm);
   }
@@ -279,6 +282,30 @@ class TeacherActor {
     }
   }
 
+  /** the busted lunge: put her in the pose for this moment (position comes from the system) */
+  pose(clock: number, lean: number, scale: number, shake: number, mark: number): void {
+    this.body.scale.setScalar(scale);
+    this.body.rotation.x = -lean;
+    this.body.position.y = Math.sin(clock * 70) * 0.012 * shake;
+    this.body.rotation.z = Math.sin(clock * 55) * 0.07 * shake;
+    this.skin.color.setHex(SKIN_ANGRY);
+    this.brows.visible = true;
+    this.exclaim.visible = true;
+    this.exclaim.scale.setScalar(mark);
+    this.question.visible = false;
+    this.coneMesh.visible = false;
+  }
+
+  /** back to her normal self after the lunge */
+  endPose(): void {
+    this.body.scale.setScalar(1);
+    this.body.rotation.set(0, 0, 0);
+    this.body.position.y = 0;
+    this.exclaim.scale.setScalar(1);
+    this.coneMesh.visible = true;
+    this.shownMode = ''; // makes the next update repaint her face
+  }
+
   private applyLook(mode: string, sees: boolean, puffs: PuffPool): void {
     const angry = mode === 'rush' || mode === 'lecture';
     const glare = mode === 'glare';
@@ -325,6 +352,11 @@ export class TeacherSystem extends createSystem({}) {
   private camQ = new Quaternion();
   private clock = 0;
   private secondIn = false;
+  // the busted lunge
+  private scareActor: TeacherActor | null = null;
+  private scareFrom = { x: 0, z: 0, yaw: 0 };
+  private scareTo = { x: 0, z: 0, yaw: 0 };
+  private scareHorn = false;
 
   init(): void {
     const classroom = this.world.getSystem(ClassroomSystem);
@@ -375,22 +407,81 @@ export class TeacherSystem extends createSystem({}) {
       let other = false;
       for (let j = 0; j < this.ais.length; j++) if (j !== i && busy(this.ais[j])) other = true;
       ctx.evidence = exam.evidence.active && !other;
+      if (SCARE.active) continue; // everyone freezes while she lunges at you
       const events = ai.update(dt, ctx);
       if (events.forgave && exam.phase === 'playing') roundStats.hidInTime += 1;
       if (events.warned) {
-        exam.addWarning();
         this.anyWarned = true;
+        // the last warning ends the exam: she lunges first, and the warning lands when she is done
+        if (exam.phase === 'playing' && exam.warnings + 1 >= exam.rules.maxWarnings) this.startScare(i);
+        else exam.addWarning();
       }
     }
 
     this.first.update(dt, this.clock, this.head, this.headWorld, this.rangeScale, this.puffs);
     if (this.secondIn) this.second.update(dt, this.clock, this.head, this.headWorld, this.rangeScale, this.puffs);
+    if (SCARE.active) this.runScare(dt, exam);
     this.seesPlayer = this.first.seesPlayer || (this.secondIn && this.second.seesPlayer);
     this.anyRush = false;
     for (let i = 0; i < this.ais.length; i++) if (this.ais[i].mode === 'rush') this.anyRush = true;
 
     this.world.camera.getWorldQuaternion(this.camQ);
     this.puffs.update(dt, this.camQ);
+  }
+
+  private startScare(i: number): void {
+    const actor = i === 0 ? this.first : this.second;
+    this.scareActor = actor;
+    this.scareFrom.x = actor.ai.x;
+    this.scareFrom.z = actor.ai.z;
+    this.scareFrom.yaw = actor.ai.yaw;
+    const to = scareTarget(this.head.x, this.head.z);
+    this.scareTo.x = to.x;
+    this.scareTo.z = to.z;
+    this.scareHorn = false;
+    SCARE.active = true;
+    SCARE.t = 0;
+    sfx.huh();
+  }
+
+  private runScare(dt: number, exam: ExamSystem['exam']): void {
+    const actor = this.scareActor;
+    if (!actor) {
+      SCARE.active = false;
+      return;
+    }
+    if (exam.phase !== 'playing') {
+      // the round ended some other way mid-lunge (time ran out): just put her back
+      SCARE.active = false;
+      actor.endPose();
+      this.scareActor = null;
+      return;
+    }
+    SCARE.t += dt;
+    const calm = SETTINGS.calm;
+    const p = scarePose(SCARE.t, calm);
+    // she turns to face your head, wherever she ends up
+    // she runs down the aisle first and only cuts across to you at the very end (so she never plows through a desk)
+    const x = this.scareFrom.x + (this.scareTo.x - this.scareFrom.x) * p.move * p.move * p.move;
+    const z = this.scareFrom.z + (this.scareTo.z - this.scareFrom.z) * p.move;
+    const faceYaw = Math.atan2(-(this.head.x - x), -(this.head.z - z));
+    let d = faceYaw - this.scareFrom.yaw;
+    d = Math.atan2(Math.sin(d), Math.cos(d)); // shortest way round
+    const shake = p.shake * Math.sin(this.clock * 61) * 0.012;
+    actor.root.position.set(x + shake, 0, z);
+    actor.root.rotation.y = this.scareFrom.yaw + d * p.turn;
+    actor.pose(this.clock, p.lean, p.scale, p.shake, p.mark);
+    if (!this.scareHorn && SCARE.t >= (calm ? 0.1 : 0.3)) {
+      this.scareHorn = true;
+      sfx.hey(calm);
+      this.puffs.burst(x, z, 9, 0.2, 0.9);
+    }
+    if (SCARE.t >= scareDuration(calm)) {
+      SCARE.active = false;
+      actor.endPose();
+      this.scareActor = null;
+      exam.addWarning(); // this one ends the exam: now the BUSTED card shows
+    }
   }
 
   private readonly ctx = { headX: 0, headZ: 0, playing: false, evidence: false, rangeScale: 1 };

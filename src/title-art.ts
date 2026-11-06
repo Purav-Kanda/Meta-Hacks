@@ -582,5 +582,5 @@ export function paintPrompt(g: Ctx): void {
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.font = `bold 62px ${FONT}`;
-  g.fillText('POINT + CLICK TO START', w / 2, h / 2 + 4);
+  g.fillText('POINT + PINCH TO START', w / 2, h / 2 + 4);
 }

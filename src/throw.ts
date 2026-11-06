@@ -194,10 +194,14 @@ export class Projectile {
 const TEACHER_DESK = { x0: 1.5, x1: 3.3, z0: -5.3, z1: -4.3 };
 const FRONT_LIMIT_Z = -3.0;
 const FRONT_LIMIT_X = 3.7;
+const DESK_BLOCK_X = 2.1; // the three desk columns end here (outer desk edge x = 2.0)
+const BACK_LIMIT_Z = 1.2; // behind the back row
 
 /** 'front' = open floor she can walk to and investigate; 'wasted' = desks/behind you/her desk */
 export function classifyLanding(x: number, z: number): 'front' | 'wasted' {
-  if (z > FRONT_LIMIT_Z || Math.abs(x) > FRONT_LIMIT_X || z < -5.7) return 'wasted';
+  // only the desk block, the walls and the room behind you are dead floor; the side lanes count as open floor
+  if (Math.abs(x) > FRONT_LIMIT_X || z < -5.7 || z > BACK_LIMIT_Z) return 'wasted';
+  if (Math.abs(x) < DESK_BLOCK_X && z > FRONT_LIMIT_Z) return 'wasted';
   if (x > TEACHER_DESK.x0 && x < TEACHER_DESK.x1 && z > TEACHER_DESK.z0 && z < TEACHER_DESK.z1) return 'wasted';
   return 'front';
 }

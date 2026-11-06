@@ -30,6 +30,11 @@ export const CribGrab = createComponent('CribGrab', {
   id: { type: Types.Int8, default: 0 },
 });
 
+/** Buttons of the settings panel and its gear. id: 0-6 = the seven settings, 7 = DONE, 8 = the gear */
+export const SettingsButton = createComponent('SettingsButton', {
+  id: { type: Types.Int8, default: 0 },
+});
+
 /** Toys you can poke. kind: 0 = the desk bell, 1.. = classmate number kind-1 */
 export const ToyButton = createComponent('ToyButton', {
   kind: { type: Types.Int8, default: 0 },

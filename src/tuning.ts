@@ -1,3 +1,4 @@
+import { SETTINGS } from './settings.js';
 /**
  * Every number that makes a mode feel easier or harder lives here, so
  * "Easy" vs "Not Easy" (piece 9) is just a different object.
@@ -136,6 +137,13 @@ export function applyTuning(d: Difficulty, intensity = 1, overrides: Partial<Tun
   Object.assign(ACTIVE_TUNING, overrides);
   ACTIVE_TUNING.visionRange *= SEAT_MODS.vision;
   ACTIVE_TUNING.peekAccuracy = Math.min(0.95, ACTIVE_TUNING.peekAccuracy * SEAT_MODS.peek);
+  if (SETTINGS.relaxed) {
+    // relaxed mode: a slower, shorter-sighted teacher who takes longer pauses
+    ACTIVE_TUNING.teacherSpeed *= 0.8;
+    ACTIVE_TUNING.rushSpeed *= 0.85;
+    ACTIVE_TUNING.visionRange *= 0.85;
+    ACTIVE_TUNING.pauseScale *= 1.25;
+  }
   for (const fn of listeners) fn();
 }
 

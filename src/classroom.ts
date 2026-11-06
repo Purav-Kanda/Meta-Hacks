@@ -15,7 +15,7 @@ import {
   VisibilityState,
   createSystem,
 } from '@iwsdk/core';
-import { COL_X, COMFORT, HOME_COL, HOME_ROW, ROW_Z, SEATING, SIT_BEHIND } from './seating.js';
+import { COL_X, HOME_COL, HOME_ROW, ROW_Z, SEATING, SIT_BEHIND } from './seating.js';
 
 // ---------- tiny helpers (kept allocation-free at runtime, all built once in init) ----------
 
@@ -216,16 +216,6 @@ export class ClassroomSystem extends createSystem({}) {
   seatEntity!: Entity;
   private clock = 0;
 
-  /** world height of the classroom floor (follows your head height calibration) */
-  get floorY(): number {
-    return this.roomRoot.position.y;
-  }
-
-  /** hide or show the whole classroom (the start screen floats in its own backdrop instead) */
-  setHidden(hidden: boolean): void {
-    this.roomRoot.visible = !hidden;
-  }
-
   init(): void {
     this.headPos = new Vector3();
     const room = new Group();
@@ -338,7 +328,7 @@ export class ClassroomSystem extends createSystem({}) {
     seatGroup.add(pencil);
 
     // the papers of whoever sits left / right of you (they ride with you; hidden when that seat is empty)
-    for (const sx of [-1.3, 1.3]) {
+    for (const sx of [-1.5, 1.5]) {
       const theirPaper = new Mesh(
         new PlaneGeometry(0.3, 0.42),
         new MeshStandardMaterial({ map: paperTex, roughness: 0.9 }),
@@ -414,17 +404,10 @@ export class ClassroomSystem extends createSystem({}) {
       this.roomRoot.position.y = 0;
       return;
     }
+    if (this.calibrated) return;
     this.world.camera.getWorldPosition(this.headPos);
     if (this.headPos.y < 0.5) return; // tracking not ready yet
-    const target = this.headPos.y - SEATED_EYE_Y;
-    if (!this.calibrated) {
-      this.roomRoot.position.y = target;
-      this.calibrated = true;
-      return;
-    }
-    // keep following your head height (sat down after starting, or put the headset on standing): quick in the
-    // menus, very slow during an exam
-    const rate = COMFORT.menu ? 1.5 : 0.12;
-    this.roomRoot.position.y += (target - this.roomRoot.position.y) * Math.min(1, Math.min(delta, 0.1) * rate);
+    this.roomRoot.position.y = this.headPos.y - SEATED_EYE_Y;
+    this.calibrated = true;
   }
 }

@@ -24,11 +24,11 @@ export interface AIEvents {
 }
 
 // Aisle layout (same floor plan as the patrol route).
-const AISLE_X = 0.65;
+const AISLE_X = 0.75;
 const AISLE_TOP_Z = -3.3;
 const FRONT_ZONE_Z = -3.35;
 const ARRIVE_EPS = 0.02;
-const OUTER_LANE_X = 1.8;
+const OUTER_LANE_X = 2.1;
 const OUTER_FRONT_Z = -3.7;
 
 /**

@@ -1,3 +1,4 @@
+import { popupScale } from './settings.js';
 import { CanvasTexture, ConeGeometry, Mesh, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace, Vector3, createSystem } from '@iwsdk/core';
 import { ClassroomSystem } from './classroom.js';
 import { ExamSystem } from './exam-system.js';
@@ -8,7 +9,7 @@ import { applyTuning } from './tuning.js';
 
 const FONT = '"Comic Sans MS", "Chalkboard SE", "Trebuchet MS", sans-serif';
 const EYE = new Vector3(0, 1.1, 0.2);
-const CARD_POS = new Vector3(0, 1.36, -0.78);
+const CARD_POS = new Vector3(0, 1.38, -0.78);
 
 /**
  * Training Day's coach: a card above your paper says what to do, a bobbing arrow points at it, and the
@@ -33,12 +34,12 @@ export class TutorialSystem extends createSystem({}) {
     this.exam = exam;
     const cv = document.createElement('canvas');
     cv.width = 1024;
-    cv.height = 360;
+    cv.height = 400;
     this.g = cv.getContext('2d')!;
     this.tex = new CanvasTexture(cv);
     this.tex.anisotropy = 16;
     this.tex.colorSpace = SRGBColorSpace;
-    this.card = new Mesh(new PlaneGeometry(0.64, 0.225), new MeshBasicMaterial({ map: this.tex, transparent: true, depthWrite: false }));
+    this.card = new Mesh(new PlaneGeometry(0.64, 0.25), new MeshBasicMaterial({ map: this.tex, transparent: true, depthWrite: false }));
     this.card.position.copy(CARD_POS);
     this.card.rotation.y = Math.atan2(EYE.x - CARD_POS.x, EYE.z - CARD_POS.z);
     this.card.renderOrder = 7;
@@ -86,6 +87,7 @@ export class TutorialSystem extends createSystem({}) {
       this.paint(cur, lesson.title, lesson.text, lesson.praise, lessonDone);
     }
     this.card.visible = true;
+    this.card.scale.setScalar(popupScale());
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - delta * 2);
       this.card.position.x = CARD_POS.x + Math.sin(this.clock * 50) * 0.012 * this.shake;
@@ -122,7 +124,7 @@ export class TutorialSystem extends createSystem({}) {
     g.font = `bold 48px ${FONT}`;
     g.fillText(`LESSON ${cur + 1}/${LESSONS.length}: ${title}`, 50, 68);
     g.fillStyle = '#222';
-    this.wrap(done && praise ? praise : text, 50, 128, w - 100, 62, 3);
+    this.wrap(done && praise ? praise : text, 50, 126, w - 100, 58, 4);
     g.fillStyle = nudged ? '#d62839' : done ? '#06b57f' : '#8a8a8a';
     g.font = `italic bold 36px ${FONT}`;
     g.fillText(nudged ? 'Try the cheat first!' : done ? (cur < LESSONS.length - 1 ? 'Now answer to go on' : '') : '', 50, h - 44);
@@ -131,7 +133,7 @@ export class TutorialSystem extends createSystem({}) {
 
   private wrap(text: string, x: number, y: number, maxW: number, lh: number, maxLines: number): void {
     const g = this.g;
-    g.font = `bold 54px ${FONT}`;
+    g.font = `bold 48px ${FONT}`;
     const words = text.split(' ');
     let line = '';
     let n = 0;

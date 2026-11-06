@@ -8,7 +8,6 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
-  PokeInteractable,
   Pressed,
   RayInteractable,
   SRGBColorSpace,
@@ -123,7 +122,6 @@ export class PhoneSystem extends createSystem({
     const de = this.world.createTransformEntity(this.deskPhone, classroom.seatEntity);
     de.addComponent(PhoneButton, { kind: 0 });
     de.addComponent(RayInteractable);
-    de.addComponent(PokeInteractable);
 
     // "CONFISCATED" tape where the phone used to be
     const t = canvasTex(320, 120);
@@ -173,7 +171,6 @@ export class PhoneSystem extends createSystem({
     const ae = this.world.createTransformEntity(ask, phoneEntity);
     ae.addComponent(PhoneButton, { kind: 1 });
     ae.addComponent(RayInteractable);
-    ae.addComponent(PokeInteractable);
 
     const h = canvasTex(240, 136);
     h.g.fillStyle = '#d62839';
@@ -195,7 +192,6 @@ export class PhoneSystem extends createSystem({
     const he = this.world.createTransformEntity(this.hideMesh, phoneEntity);
     he.addComponent(PhoneButton, { kind: 2 });
     he.addComponent(RayInteractable);
-    he.addComponent(PokeInteractable);
 
     this.queries.pressed.subscribe('qualify', (e: Entity) => {
       if (this.exam.exam.phase !== 'playing') return;
@@ -289,7 +285,7 @@ export class PhoneSystem extends createSystem({
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.font = `bold 34px ${FONT}`;
-    g.fillText('tap', w / 2, h / 2 + 60);
+    g.fillText('pinch', w / 2, h / 2 + 60);
   }
 
   private paintScreen(mode: string): void {

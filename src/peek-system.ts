@@ -27,16 +27,16 @@ const SIDE_NAME = ['LEFT KID', 'RIGHT KID'];
 const NOPE_WORDS = ['NOPE!', 'NO WAY!', 'GET YOUR OWN!', 'EYES FRONT!'];
 // the shared paper slides from the neighbor's desk to here (room-local meters)
 const DESK: Array<[number, number, number]> = [
-  [-1.3, 0.82, -0.45],
-  [1.3, 0.82, -0.45],
+  [-1.5, 0.82, -0.45],
+  [1.5, 0.82, -0.45],
 ];
 const HOLD: Array<[number, number, number]> = [
   [-0.52, 1.0, -0.42],
   [0.52, 1.0, -0.42],
 ];
 const NOPE_POS: Array<[number, number, number]> = [
-  [-1.3, 1.55, -0.45],
-  [1.3, 1.55, -0.45],
+  [-1.5, 1.55, -0.45],
+  [1.5, 1.55, -0.45],
 ];
 const EYE = new Vector3(0, 1.1, 0.2);
 
@@ -286,7 +286,7 @@ export class PeekSystem extends createSystem({
     g.fillText(answer >= 0 ? LETTERS[answer] : '?', w / 2, 220);
     g.fillStyle = '#6a4cff';
     g.font = `italic 28px ${FONT}`;
-    g.fillText('tap kid to hide it', w / 2, 340);
+    g.fillText('pinch kid to hide it', w / 2, 340);
     this.cardTex[side].needsUpdate = true;
   }
 

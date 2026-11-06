@@ -1,3 +1,4 @@
+import { assistFactor } from './settings.js';
 import {
   CanvasTexture,
   CylinderGeometry,
@@ -11,7 +12,6 @@ import {
   DistanceGrabbable,
   MovementMode,
   PlaneGeometry,
-  PokeInteractable,
   Pressed,
   RayInteractable,
   RingGeometry,
@@ -190,7 +190,6 @@ export class FruitSystem extends createSystem({
     const boxEntity = this.world.createTransformEntity(body, room);
     boxEntity.addComponent(FruitButton, { kind: 0 });
     boxEntity.addComponent(RayInteractable);
-    boxEntity.addComponent(PokeInteractable);
     const stripe = new Mesh(new BoxGeometry(0.245, 0.02, 0.152), flat(0xffffff));
     stripe.position.y = 0.0;
     body.add(stripe);
@@ -296,7 +295,6 @@ export class FruitSystem extends createSystem({
       const be = this.world.createTransformEntity(bubble, room);
       be.addComponent(FruitButton, { kind: 1 + z });
       be.addComponent(RayInteractable);
-      be.addComponent(PokeInteractable);
     }
 
     // little prompt that floats by the waiting fruit: tells you what to do (also doubles as onboarding)
@@ -492,7 +490,7 @@ export class FruitSystem extends createSystem({
       this.vel.y *= k;
       this.vel.z *= k;
     }
-    assistVelocity(this.pos, this.vel, AIM_TARGETS, ACTIVE_TUNING.aimAssist, this.vel2);
+    assistVelocity(this.pos, this.vel, AIM_TARGETS, Math.min(1, ACTIVE_TUNING.aimAssist * assistFactor()), this.vel2);
     this.launch(kind, this.pos, this.vel2);
   }
 

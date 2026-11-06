@@ -1,3 +1,5 @@
+import { SETTINGS, VOLUME_GAIN, onSettingsChange } from './settings.js';
+
 const MUSIC_VOLUME = 0.22;
 const STEP_SECONDS = 60 / 112 / 2; // 112 BPM, eighth notes
 const CHORD_ROOTS = [0, -3, -7, -5]; // C, Am, F, G (semitones from C)
@@ -25,7 +27,7 @@ class Sfx {
         if (!AC) return;
         this.ctx = new AC();
         this.master = this.ctx.createGain();
-        this.master.gain.value = 0.5;
+        this.master.gain.value = VOLUME_GAIN[SETTINGS.volume];
         this.master.connect(this.ctx.destination);
         const len = this.ctx.sampleRate;
         this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -36,6 +38,11 @@ class Sfx {
     } catch {
       /* no audio, the game still works */
     }
+  }
+
+  /** the volume setting changed */
+  applyVolume(): void {
+    if (this.master) this.master.gain.value = VOLUME_GAIN[SETTINGS.volume];
   }
 
   private ready(): boolean {
@@ -169,6 +176,16 @@ class Sfx {
     this.tone('sawtooth', 1000, 380, 0.45, 0.22);
     this.noise('highpass', 2500, 1200, 0.4, 0.25);
   }
+  /** the busted shout: a loud, silly "HEY!" honk (softer in calm mode) */
+  hey(calm = false): void {
+    const v = calm ? 0.25 : 0.5;
+    this.tone('sawtooth', 420, 150, 0.42, v);
+    this.tone('square', 210, 85, 0.4, v * 0.6, 0.02);
+    if (!calm) {
+      this.noise('bandpass', 1500, 600, 0.18, 0.35);
+      this.tone('sine', 300, 700, 0.12, 0.3, 0.45); // little squeak after
+    }
+  }
   huh(): void {
     this.tone('triangle', 400, 400, 0.1, 0.3);
     this.tone('triangle', 620, 620, 0.16, 0.3, 0.11);
@@ -208,3 +225,4 @@ class Sfx {
 }
 
 export const sfx = new Sfx();
+onSettingsChange(() => sfx.applyVolume());

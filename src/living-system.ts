@@ -9,7 +9,6 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
-  PokeInteractable,
   Pressed,
   RayInteractable,
   RepeatWrapping,
@@ -102,8 +101,8 @@ function posterTex(p: Poster): CanvasTexture {
 
 /**
  * Makes the room feel alive: a wall clock that shows the real exam countdown, windows with drifting
- * clouds, posters, a bell you can ring, and classmates who look around, giggle at flying fruit, gasp at
- * warnings and cower when the teacher charges. Tap a classmate or the bell for a reaction.
+ * clouds, posters, classmates who look around, giggle at flying fruit, gasp at
+ * warnings and cower when the teacher charges. Pinch a classmate for a reaction.
  */
 export class LivingSystem extends createSystem({
   pressed: { required: [ToyButton, Pressed] },
@@ -119,9 +118,6 @@ export class LivingSystem extends createSystem({
   private clockG!: CanvasRenderingContext2D;
   private clockTex!: CanvasTexture;
   private shownClock = -2;
-  private bell!: Group;
-  private bellDome!: Mesh;
-  private bellAnim = 0;
   private clock = 0;
   private head = new Vector3();
 
@@ -160,7 +156,6 @@ export class LivingSystem extends createSystem({
     this.buildWindows(classroom.shell);
     this.buildPosters(classroom.shell);
     this.buildTeacherDeskProps(room);
-    this.buildBell(classroom);
 
     // classmates you can tap: an invisible ball around each one
     this.kids.forEach((kid, i) => {
@@ -176,16 +171,11 @@ export class LivingSystem extends createSystem({
       const e = this.world.createTransformEntity(hit, classroom.roomEntity);
       e.addComponent(ToyButton, { kind: 1 + i });
       e.addComponent(RayInteractable);
-      e.addComponent(PokeInteractable);
     });
 
     this.queries.pressed.subscribe('qualify', (e: Entity) => {
       const kind = e.getValue(ToyButton, 'kind') as number;
-      if (kind === 0) {
-        sfx.bell();
-        this.bellAnim = 1;
-        for (let i = 0; i < this.kids.length; i++) this.lookPlayer[i] = Math.max(this.lookPlayer[i], 1.2);
-      } else {
+      if (kind >= 1) {
         const i = kind - 1;
         if (i >= this.kids.length) return; // another toy (seat card)
         // while the exam runs, a tap on the classmate next to you is a PEEK request (PeekSystem handles it)
@@ -335,23 +325,6 @@ export class LivingSystem extends createSystem({
     room.add(mug);
   }
 
-  private buildBell(classroom: ClassroomSystem): void {
-    this.bell = new Group();
-    const base = new Mesh(new CylinderGeometry(0.06, 0.07, 0.015, 16), std(0x6b4423));
-    this.bell.add(base);
-    this.bellDome = new Mesh(new SphereGeometry(0.05, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), std(0xffc300, 0.3));
-    this.bellDome.position.y = 0.008;
-    this.bell.add(this.bellDome);
-    const knob = new Mesh(new SphereGeometry(0.012, 8, 6), std(0xc0c0c0, 0.3));
-    knob.position.y = 0.06;
-    this.bell.add(knob);
-    this.bell.position.set(0.22, 0.79, -0.2);
-    const e = this.world.createTransformEntity(this.bell, classroom.seatEntity);
-    e.addComponent(ToyButton, { kind: 0 });
-    e.addComponent(RayInteractable);
-    e.addComponent(PokeInteractable);
-  }
-
   // ---------------------------------------------------------------- per-frame
 
   update(delta: number): void {
@@ -366,13 +339,6 @@ export class LivingSystem extends createSystem({
     if (left !== this.shownClock) {
       this.shownClock = left;
       this.paintClock(Math.max(0, left), ex.rules.seconds);
-    }
-
-    // bell wobble
-    if (this.bellAnim > 0) {
-      this.bellAnim = Math.max(0, this.bellAnim - dt * 2.2);
-      this.bellDome.rotation.z = Math.sin(this.clock * 40) * 0.25 * this.bellAnim;
-      this.bellDome.scale.y = 1 - 0.25 * Math.max(0, this.bellAnim - 0.7) * 3;
     }
 
     this.reactToEvents();

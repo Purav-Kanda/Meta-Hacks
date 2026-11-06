@@ -3,7 +3,6 @@ import {
   Mesh,
   MeshBasicMaterial,
   PlaneGeometry,
-  PokeInteractable,
   Pressed,
   RayInteractable,
   SRGBColorSpace,
@@ -83,7 +82,6 @@ export class SeatSystem extends createSystem({
     // click the card to skip (ToyButton kind 20 is ignored by the other systems)
     e.addComponent(ToyButton, { kind: 20 });
     e.addComponent(RayInteractable);
-    e.addComponent(PokeInteractable);
     this.queries.pressed.subscribe('qualify', (en) => {
       if (en.getValue(ToyButton, 'kind') === 20 && SEAT.holding && this.landed && this.t > SPIN_SECONDS + 1.0) SEAT.skip = true;
     });
@@ -315,7 +313,7 @@ export class SeatSystem extends createSystem({
       g.textAlign = 'center';
       g.fillStyle = '#8a8a8a';
       g.font = `italic 26px ${FONT}`;
-      g.fillText('click to start', w / 2, h - 52);
+      g.fillText('pinch to start', w / 2, h - 52);
     } else {
       g.fillStyle = '#8a8a8a';
       g.font = `italic bold 40px ${FONT}`;

@@ -11,17 +11,17 @@ export interface Waypoint {
   lookAt?: [number, number];
 }
 
-// Floor plan: desks sit at x = -1.3, 0, 1.3. Aisles run at x = +-0.65.
+// Floor plan: desks sit at x = -1.5, 0, 1.5. Aisles run at x = +-0.75 (0.5 m wide, she fits).
 // She never walks behind the player's chair, where a seated player cannot see her.
 export const PATROL: Waypoint[] = [
   { x: 0, z: -3.9, pause: 2, lookAt: [0, 0] },
-  { x: 0.65, z: -3.3 },
+  { x: 0.75, z: -3.3 },
   { x: 0.65, get z() { return SEATING.standZ; }, pause: 1.6, lookAt: SEATING.look },
-  { x: 0.65, z: -3.3 },
+  { x: 0.75, z: -3.3 },
   { x: 0, z: -3.9, pause: 1, lookAt: [0, 0] },
-  { x: -0.65, z: -3.3 },
-  { x: -0.65, get z() { return SEATING.standZ; }, pause: 1.6, lookAt: SEATING.look },
-  { x: -0.65, z: -3.3 },
+  { x: -0.75, z: -3.3 },
+  { x: -0.75, get z() { return SEATING.standZ; }, pause: 1.6, lookAt: SEATING.look },
+  { x: -0.75, z: -3.3 },
 ];
 
 /**
@@ -30,16 +30,16 @@ export const PATROL: Waypoint[] = [
  * aisle tops she resumes from after a catch.
  */
 export const PATROL_OUTER: Waypoint[] = [
-  { x: -2.4, z: -3.8, pause: 1.2, lookAt: [0, 0] },
-  { x: -2.4, get z() { return SEATING.standZ - 0.65; }, pause: 1.6, lookAt: SEATING.look },
-  { x: -2.4, z: -3.8 },
-  { x: -0.65, z: -3.3 },
-  { x: 0.65, z: -3.3 },
-  { x: 2.4, z: -3.8, pause: 1.2, lookAt: [0, 0] },
-  { x: 2.4, get z() { return SEATING.standZ - 0.65; }, pause: 1.6, lookAt: SEATING.look },
-  { x: 2.4, z: -3.8 },
-  { x: 0.65, z: -3.3 },
-  { x: -0.65, z: -3.3 },
+  { x: -2.6, z: -3.8, pause: 1.2, lookAt: [0, 0] },
+  { x: -2.6, get z() { return SEATING.standZ - 0.65; }, pause: 1.6, lookAt: SEATING.look },
+  { x: -2.6, z: -3.8 },
+  { x: -0.75, z: -3.3 },
+  { x: 0.75, z: -3.3 },
+  { x: 2.6, z: -3.8, pause: 1.2, lookAt: [0, 0] },
+  { x: 2.6, get z() { return SEATING.standZ - 0.65; }, pause: 1.6, lookAt: SEATING.look },
+  { x: 2.6, z: -3.8 },
+  { x: 0.75, z: -3.3 },
+  { x: -0.75, z: -3.3 },
 ];
 
 /**

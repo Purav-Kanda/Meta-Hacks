@@ -1,32 +1,29 @@
 import {
-  BackSide,
   CanvasTexture,
   Group,
   Mesh,
   MeshBasicMaterial,
   PlaneGeometry,
-  PokeInteractable,
   Pressed,
   RayInteractable,
-  SphereGeometry,
   SRGBColorSpace,
   createSystem,
 } from '@iwsdk/core';
 import { ClassroomSystem } from './classroom.js';
 import { ToyButton } from './exam-components.js';
+import { SETTINGS } from './settings.js';
 import { sfx } from './sfx.js';
 import { TITLE } from './title.js';
 import { FRAME_H, FRAME_W, SCENE_H, SCENE_W, STAMPS, WINDOW, paintCaption, paintFrame, paintPrompt, paintScene, paintStamp } from './title-art.js';
 
 const M_PER_PX = 1.3 / FRAME_W; // the poster is 1.3 m wide
-const ROOT_POS = { x: 0, y: 1.2, z: -1.35 };
+const ROOT_POS = { x: 0, y: 1.22, z: -1.3 };
 const SCENE_COUNT = STAMPS.length;
 const SCENE_SECONDS = 3.4;
 const FADE_SECONDS = 0.7;
 const ZOOM = 0.1; // slow push-in per scene
 const LEAVE_SECONDS = 0.45;
-const CONFETTI = 36;
-const CONFETTI_COLORS = [0xff4d6d, 0x3a86ff, 0x06b57f, 0xffd166, 0x6a4cff];
+
 
 function tex(cv: HTMLCanvasElement): CanvasTexture {
   const t = new CanvasTexture(cv);
@@ -68,46 +65,15 @@ export class TitleSystem extends createSystem({
   private t = 0;
   private leave = 0;
   private shown = -1;
-  private classroom!: ClassroomSystem;
-  private bg!: Group;
-  private bgMat!: MeshBasicMaterial;
-  private confetti: Mesh[] = [];
-  private confettiMats: MeshBasicMaterial[] = [];
 
   init(): void {
     const classroom = this.world.getSystem(ClassroomSystem);
     if (!classroom) throw new Error('Classroom system must be registered before TitleSystem');
     const qp = new URLSearchParams(window.location.search);
 
-    this.classroom = classroom;
     this.root = new Group();
     this.root.position.set(ROOT_POS.x, ROOT_POS.y, ROOT_POS.z);
-    // the start screen lives in its own backdrop at the scene level; the classroom stays hidden until START
-    const rootEntity = this.world.createTransformEntity(this.root);
-
-    // backdrop: a big soft gradient dome plus drifting confetti
-    const bcv = canvas(8, 256);
-    const bg2 = bcv.getContext('2d')!;
-    const grad = bg2.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0, '#2a1b6e');
-    grad.addColorStop(0.5, '#5a3fd1');
-    grad.addColorStop(1, '#e2639a');
-    bg2.fillStyle = grad;
-    bg2.fillRect(0, 0, 8, 256);
-    this.bgMat = new MeshBasicMaterial({ map: tex(bcv), side: BackSide, transparent: true, depthWrite: false });
-    const dome = new Mesh(new SphereGeometry(9, 24, 16), this.bgMat);
-    dome.renderOrder = -10;
-    this.bg = new Group();
-    this.bg.add(dome);
-    const confGeo = new PlaneGeometry(0.05, 0.08);
-    for (let i = 0; i < CONFETTI; i++) {
-      const m = new MeshBasicMaterial({ color: CONFETTI_COLORS[i % CONFETTI_COLORS.length], transparent: true, side: 2 });
-      const c = new Mesh(confGeo, m);
-      this.confetti.push(c);
-      this.confettiMats.push(m);
-      this.bg.add(c);
-    }
-    this.world.createTransformEntity(this.bg);
+    const rootEntity = this.world.createTransformEntity(this.root, classroom.seatEntity);
 
     // scenes (drawn once)
     for (let i = 0; i < SCENE_COUNT; i++) {
@@ -175,7 +141,6 @@ export class TitleSystem extends createSystem({
     const hitEntity = this.world.createTransformEntity(this.hit, rootEntity);
     hitEntity.addComponent(ToyButton, { kind: 21 });
     hitEntity.addComponent(RayInteractable);
-    hitEntity.addComponent(PokeInteractable);
     this.queries.pressed.subscribe('qualify', (en) => {
       if (en.getValue(ToyButton, 'kind') !== 21 || !TITLE.active || TITLE.leaving) return;
       sfx.unlock();
@@ -187,27 +152,19 @@ export class TitleSystem extends createSystem({
       TITLE.active = false;
       this.root.visible = false;
       this.hit.visible = false;
-      this.bg.visible = false;
-    } else {
-      this.classroom.setHidden(true);
     }
   }
 
   update(delta: number): void {
     if (!TITLE.active) {
-      if (this.root.visible || this.bg.visible) {
+      if (this.root.visible) {
         this.root.visible = false;
         this.hit.visible = false;
-        this.bg.visible = false;
-        this.classroom.setHidden(false);
       }
       return;
     }
     const dt = Math.min(delta, 0.1);
-    // follow your calibrated head height so the poster sits at eye level
-    const fy = this.classroom.floorY;
-    this.bg.position.y = fy + 1.1;
-    this.drift(this.t);
+
     if (TITLE.jump >= 0) {
       this.t = TITLE.jump;
       TITLE.jump = -1;
@@ -219,20 +176,15 @@ export class TitleSystem extends createSystem({
       this.leave += dt / LEAVE_SECONDS;
       const u = Math.min(1, this.leave);
       this.root.scale.setScalar(Math.max(0.001, 1 - u * u));
-      this.root.position.y = fy + ROOT_POS.y + u * 0.25;
-      this.bgMat.opacity = 1 - u;
-      this.classroom.setHidden(false);
-      for (let i = 0; i < CONFETTI; i++) this.confettiMats[i].opacity = 1 - u;
+      this.root.position.y = ROOT_POS.y + u * 0.25;
       if (u >= 1) {
         TITLE.active = false;
         TITLE.leaving = false;
         this.root.visible = false;
         this.hit.visible = false;
-        this.bg.visible = false;
       }
       return;
     }
-    this.root.position.y = fy + ROOT_POS.y;
 
     const idx = Math.floor(this.t / SCENE_SECONDS);
     const local = this.t - idx * SCENE_SECONDS;
@@ -279,21 +231,9 @@ export class TitleSystem extends createSystem({
     this.prompt.scale.setScalar(1 + Math.sin(this.t * 4) * 0.035);
   }
 
-  /** confetti slowly falling in a ring around you (local to the backdrop group, centred on the player) */
-  private drift(t: number): void {
-    for (let i = 0; i < CONFETTI; i++) {
-      const a = (i / CONFETTI) * Math.PI * 2 + i * 0.7;
-      const r = 1.6 + (i % 5) * 0.35;
-      const fall = ((t * (0.12 + (i % 4) * 0.03) + i * 0.37) % 2.4) / 2.4;
-      const c = this.confetti[i];
-      c.position.set(Math.sin(a) * r, 1.4 - fall * 2.8, -Math.cos(a) * r);
-      c.rotation.set(t * (1 + (i % 3)), a + t * 0.6, t * 0.8);
-    }
-  }
-
   /** slow push-in toward a point, by scene progress p (0..2: second half is the outgoing layer) */
   private zoom(t: CanvasTexture, p: number, scene: number): void {
-    const z = 1 + ZOOM * Math.min(2, p) * 0.5;
+    const z = 1 + (SETTINGS.calm ? 0 : ZOOM) * Math.min(2, p) * 0.5;
     const r = 1 / z;
     // drift toward a different corner each scene
     const fx = scene % 2 === 0 ? 0.35 : 0.65;

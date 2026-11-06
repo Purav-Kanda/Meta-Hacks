@@ -7,7 +7,7 @@
  *
  * Coordinates are room coordinates (the room never moves; the player's rig is the one that is "somewhere else").
  */
-export const COL_X: readonly number[] = [-1.3, 0, 1.3];
+export const COL_X: readonly number[] = [-1.5, 0, 1.5];
 /** desk z per row: 0 = front row (nearer the board), 1 = back row (home) */
 export const ROW_Z: readonly number[] = [-2.2, -0.55];
 /** how far behind its desk a classmate sits, per row */
@@ -15,7 +15,7 @@ export const SIT_BEHIND: readonly number[] = [0.7, 0.7];
 export const HOME_ROW = 1;
 export const HOME_COL = 1;
 /** the aisles the teacher walks run at x = +-AISLE_X, between the columns */
-export const AISLE_X = 0.65;
+export const AISLE_X = 0.75;
 const HOME_STAND_Z = -0.35; // where she stands beside a back-row desk
 
 export interface Slot {
@@ -108,9 +108,3 @@ export const SEATING = {
     return sideHint * AISLE_X;
   },
 };
-
-/**
- * Height comfort: the room follows your real head height so it fits sitting or standing. It adapts quickly in the
- * menus and very slowly during an exam (so leaning over to the tray does not bob the room).
- */
-export const COMFORT = { menu: true };
