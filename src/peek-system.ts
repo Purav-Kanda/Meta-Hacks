@@ -125,7 +125,7 @@ export class PeekSystem extends createSystem({
       const c = canvasTex(300, 390);
       this.cardG.push(c.g);
       this.cardTex.push(c.tex);
-      const card = new Mesh(new PlaneGeometry(0.2, 0.26), new MeshBasicMaterial({ map: c.tex, transparent: true }));
+      const card = new Mesh(new PlaneGeometry(0.2, 0.26), new MeshBasicMaterial({ map: c.tex, transparent: true, depthWrite: false }));
       card.position.set(...DESK[s]);
       card.rotation.y = faceYaw(HOLD[s][0], HOLD[s][2]);
       card.renderOrder = 5;
@@ -136,7 +136,7 @@ export class PeekSystem extends createSystem({
       const n = canvasTex(440, 240);
       this.nopeG.push(n.g);
       this.nopeTex.push(n.tex);
-      const bub = new Mesh(new PlaneGeometry(0.4, 0.218), new MeshBasicMaterial({ map: n.tex, transparent: true }));
+      const bub = new Mesh(new PlaneGeometry(0.4, 0.218), new MeshBasicMaterial({ map: n.tex, transparent: true, depthWrite: false }));
       bub.position.set(...NOPE_POS[s]);
       bub.rotation.y = faceYaw(NOPE_POS[s][0], NOPE_POS[s][2]);
       bub.renderOrder = 5;
@@ -148,7 +148,7 @@ export class PeekSystem extends createSystem({
       const hm = canvasTex(440, 240);
       this.paintBubbleText(hm.g, 'FINDING IT...', '#8ecae6', '#1d3557', 56);
       hm.tex.needsUpdate = true;
-      const hb = new Mesh(new PlaneGeometry(0.4, 0.218), new MeshBasicMaterial({ map: hm.tex, transparent: true }));
+      const hb = new Mesh(new PlaneGeometry(0.4, 0.218), new MeshBasicMaterial({ map: hm.tex, transparent: true, depthWrite: false }));
       hb.position.set(...NOPE_POS[s]);
       hb.rotation.y = faceYaw(NOPE_POS[s][0], NOPE_POS[s][2]);
       hb.renderOrder = 5;

@@ -56,7 +56,7 @@ export class TeacherAI {
     route: readonly Waypoint[] = PATROL,
     private readonly tuning: Tuning,
     /** route index to carry on from after a catch at the right / left aisle end, and after a fruit distraction */
-    private readonly resumeIdx: { right: number; left: number; distract: number } = { right: 3, left: 7, distract: 0 },
+    private readonly resumeIdx: { right: number; left: number; distract: number } = { right: 4, left: 9, distract: 0 },
   ) {
     this.patrol = new PatrolBrain(route, tuning);
   }

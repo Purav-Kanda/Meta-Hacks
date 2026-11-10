@@ -10,6 +10,7 @@ import {
   PlaneGeometry,
   Pressed,
   RayInteractable,
+  LinearFilter,
   SRGBColorSpace,
   Vector3,
   createSystem,
@@ -26,7 +27,7 @@ import { ROUND } from './modes.js';
 const FONT = '"Comic Sans MS", "Chalkboard SE", "Trebuchet MS", sans-serif';
 const LETTERS = ['A', 'B', 'C'];
 const PHONE_POS = new Vector3(-0.45, 1.0, -0.45); // raised, floating at the left of your paper
-const EYE = new Vector3(0, 1.1, 0.2);
+const EYE = new Vector3(0, 1.3, 0.2);
 // where HIDE can sit around the raised phone (phone-local meters); it jumps between these while she rushes
 const HIDE_SPOTS: Array<[number, number]> = [
   [0, -0.15],
@@ -44,6 +45,9 @@ function canvasTex(w: number, h: number) {
   const tex = new CanvasTexture(cv);
   tex.anisotropy = 16; // three.js clamps to what the GPU supports; keeps tilted text crisp
   tex.colorSpace = SRGBColorSpace;
+  // these get repainted while you play and are always close to your eyes: skip the mip-map rebuild on every upload
+  tex.generateMipmaps = false;
+  tex.minFilter = LinearFilter;
   return { g, tex };
 }
 
@@ -115,7 +119,8 @@ export class PhoneSystem extends createSystem({
     const d = canvasTex(200, 360);
     this.paintDeskPhone(d.g);
     d.tex.needsUpdate = true;
-    this.deskPhone = new Mesh(new PlaneGeometry(0.1, 0.18), new MeshBasicMaterial({ map: d.tex, transparent: true }));
+    this.deskPhone = new Mesh(new PlaneGeometry(0.1, 0.18), new MeshBasicMaterial({ map: d.tex, transparent: true, depthWrite: false }));
+    this.deskPhone.renderOrder = 1;
     this.deskPhone.rotation.x = -Math.PI / 2;
     this.deskPhone.rotation.z = 0.35;
     this.deskPhone.position.set(-0.42, 0.784, -0.28);
@@ -135,7 +140,8 @@ export class PhoneSystem extends createSystem({
     t.g.font = `bold 46px ${FONT}`;
     t.g.fillText('CONFISCATED', 160, 62);
     t.tex.needsUpdate = true;
-    this.tape = new Mesh(new PlaneGeometry(0.16, 0.06), new MeshBasicMaterial({ map: t.tex, transparent: true }));
+    this.tape = new Mesh(new PlaneGeometry(0.16, 0.06), new MeshBasicMaterial({ map: t.tex, transparent: true, depthWrite: false }));
+    this.tape.renderOrder = 2;
     this.tape.rotation.x = -Math.PI / 2;
     this.tape.rotation.z = 0.35;
     this.tape.position.set(-0.42, 0.785, -0.28);
@@ -156,7 +162,7 @@ export class PhoneSystem extends createSystem({
     const screen = new Mesh(new PlaneGeometry(0.14, 0.26), new MeshBasicMaterial({ map: s.tex }));
     this.raised.add(screen);
     this.haloMat = new MeshBasicMaterial({ map: glowTexture(), transparent: true, blending: AdditiveBlending, depthWrite: false });
-    this.halo = new Mesh(new PlaneGeometry(0.8, 0.8), this.haloMat);
+    this.halo = new Mesh(new PlaneGeometry(0.5, 0.5), this.haloMat);
     this.halo.position.z = -0.03;
     this.halo.renderOrder = 3;
     this.raised.add(this.halo);
@@ -165,7 +171,7 @@ export class PhoneSystem extends createSystem({
     const a = canvasTex(300, 135);
     this.askG = a.g;
     this.askTex = a.tex;
-    const ask = new Mesh(new PlaneGeometry(0.1, 0.045), new MeshBasicMaterial({ map: a.tex, transparent: true }));
+    const ask = new Mesh(new PlaneGeometry(0.1, 0.045), new MeshBasicMaterial({ map: a.tex, transparent: true, depthWrite: false }));
     ask.position.set(0, -0.075, 0.008);
     ask.renderOrder = 6;
     const ae = this.world.createTransformEntity(ask, phoneEntity);
@@ -186,7 +192,7 @@ export class PhoneSystem extends createSystem({
     h.g.font = `bold 62px ${FONT}`;
     h.g.fillText('HIDE!', 120, 70);
     h.tex.needsUpdate = true;
-    this.hideMesh = new Mesh(new PlaneGeometry(0.11, 0.063), new MeshBasicMaterial({ map: h.tex, transparent: true }));
+    this.hideMesh = new Mesh(new PlaneGeometry(0.11, 0.063), new MeshBasicMaterial({ map: h.tex, transparent: true, depthWrite: false }));
     this.hideMesh.position.set(HIDE_SPOTS[0][0], HIDE_SPOTS[0][1], 0.012);
     this.hideMesh.renderOrder = 7;
     const he = this.world.createTransformEntity(this.hideMesh, phoneEntity);
@@ -246,7 +252,7 @@ export class PhoneSystem extends createSystem({
     this.tape.visible = m.state === 'gone';
     this.raised.visible = m.state === 'up';
     if (m.state !== 'up') return;
-    this.haloMat.opacity = 0.7 + 0.25 * Math.sin(this.clock * 6);
+    this.haloMat.opacity = 0.5 + 0.08 * Math.sin(this.clock * 3); // a calm glow: a big fast pulse right in front of your eyes reads as flicker
     const spot = HIDE_SPOTS[m.hideSlot];
     this.hideMesh.position.x = spot[0];
     this.hideMesh.position.y = spot[1];

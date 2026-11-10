@@ -16,6 +16,8 @@ export interface Settings {
   calm: boolean;
   /** 0 off, 1 normal, 2 strong: how much a thrown snack bends toward the nearest front corner */
   assist: number;
+  /** 0..2: how high your eyes sit above the desk. Your head can never drop below this (ducking does nothing) */
+  height: number;
 }
 
 export const DEFAULTS: Readonly<Settings> = {
@@ -26,6 +28,7 @@ export const DEFAULTS: Readonly<Settings> = {
   relaxed: false,
   calm: false,
   assist: 1,
+  height: 0,
 };
 
 export const SETTINGS: Settings = { ...DEFAULTS };
@@ -33,6 +36,8 @@ export const SETTINGS: Settings = { ...DEFAULTS };
 export const VOLUME_GAIN = [0, 0.2, 0.5, 0.9] as const;
 export const VOLUME_NAMES = ['OFF', 'LOW', 'MEDIUM', 'HIGH'] as const;
 export const ASSIST_NAMES = ['OFF', 'NORMAL', 'STRONG'] as const;
+export const HEIGHT_NAMES = ['NORMAL', 'HIGH', 'HIGHER'] as const;
+const HEIGHT_EYE_Y = [1.3, 1.4, 1.5] as const;
 const ASSIST_MULT = [0, 1, 1.6] as const;
 
 const KEY = 'popquiz.settings.v1';
@@ -77,6 +82,7 @@ export function loadSettings(raw?: string | null): void {
   SETTINGS.relaxed = bool(o.relaxed, DEFAULTS.relaxed);
   SETTINGS.calm = bool(o.calm, DEFAULTS.calm);
   SETTINGS.assist = clampInt(o.assist, 0, 2, DEFAULTS.assist);
+  SETTINGS.height = clampInt(o.height, 0, 2, DEFAULTS.height);
 }
 
 export function saveSettings(): void {
@@ -98,3 +104,6 @@ export const popupScale = (): number => (SETTINGS.popupLarge ? 1.3 : 1);
 export const assistFactor = (): number => ASSIST_MULT[SETTINGS.assist] ?? 1;
 /** extra exam time in relaxed mode */
 export const timeFactor = (): number => (SETTINGS.relaxed ? 1.5 : 1);
+
+/** eye height above the floor of the classroom (desk top is 0.775), from the seat-height setting */
+export const eyeHeight = (): number => HEIGHT_EYE_Y[SETTINGS.height] ?? 1.3;

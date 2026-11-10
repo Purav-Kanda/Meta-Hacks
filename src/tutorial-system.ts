@@ -8,7 +8,7 @@ import { LESSONS, TUTORIAL } from './tutorial.js';
 import { applyTuning } from './tuning.js';
 
 const FONT = '"Comic Sans MS", "Chalkboard SE", "Trebuchet MS", sans-serif';
-const EYE = new Vector3(0, 1.1, 0.2);
+const EYE = new Vector3(0, 1.3, 0.2);
 const CARD_POS = new Vector3(0, 1.38, -0.78);
 
 /**

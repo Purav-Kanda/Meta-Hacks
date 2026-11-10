@@ -86,6 +86,8 @@ export const SEATING = {
   seq: 0,
   /** where she stands when she comes to check you: the aisle toward the room's middle, beside your desk */
   standZ: HOME_STAND_Z,
+  /** how far down the aisle she walks after stopping beside you: the back wall for a front-row seat, nowhere extra for the back row */
+  endZ: HOME_STAND_Z,
   /** shared with the patrol waypoints: the floor point she looks at when she checks on you */
   look: [0, 0.05] as [number, number],
   arrangement: arrange(HOME_ROW, HOME_COL),
@@ -95,6 +97,7 @@ export const SEATING = {
     this.dx = COL_X[col] - COL_X[HOME_COL];
     this.dz = ROW_Z[row] - ROW_Z[HOME_ROW];
     this.standZ = ROW_Z[row] + 0.2;
+    this.endZ = row === 0 ? 1.1 : this.standZ;
     this.look[0] = this.dx;
     this.look[1] = this.dz + 0.05;
     this.arrangement = arrange(row, col);

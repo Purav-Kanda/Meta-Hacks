@@ -13,19 +13,20 @@ import {
 import { ClassroomSystem } from './classroom.js';
 import { ExamSystem } from './exam-system.js';
 import { SettingsButton } from './exam-components.js';
-import { ASSIST_NAMES, SETTINGS, VOLUME_NAMES, changeSettings, onSettingsChange } from './settings.js';
+import { ASSIST_NAMES, HEIGHT_NAMES, SETTINGS, VOLUME_NAMES, changeSettings, onSettingsChange } from './settings.js';
 import { SEAT } from './seat.js';
 import { TITLE } from './title.js';
 
 const FONT = '"Comic Sans MS", "Chalkboard SE", "Trebuchet MS", sans-serif';
 const PX_PER_M = 1600;
-const PANEL_POS = { x: 0, y: 1.3, z: -0.9 };
+const PANEL_POS = { x: 0, y: 1.42, z: -0.9 };
 const PANEL_W = 0.9;
-const PANEL_H = 0.62;
+const PANEL_H = 0.725; // one more row than before; the plate grows downward (see PLATE_DY)
+const PLATE_DY = -0.0525;
 const CELL_W = 0.42;
 const CELL_H = 0.095;
 const COL_X = [-0.215, 0.215];
-const ROW_Y = [0.115, 0.01, -0.095, -0.2];
+const ROW_Y = [0.115, 0.01, -0.095, -0.2, -0.305];
 const GEAR_POS = { x: 0.52, y: 1.12, z: -0.9 };
 
 interface Cell {
@@ -35,9 +36,11 @@ interface Cell {
   label: string;
   desc: string;
   color: string;
+  /** centered under both columns */
+  center?: boolean;
 }
 
-// ids 0-6 are the settings, 7 is DONE. Left column first, then the right one.
+// ids 0-6 and 9 are the settings, 7 is DONE. Left column first, then the right one.
 const CELLS: Cell[] = [
   { id: 0, col: 0, row: 0, label: 'SOUND', desc: 'master volume', color: '#3a86ff' },
   { id: 1, col: 0, row: 1, label: 'MUSIC', desc: 'the background beat', color: '#8338ec' },
@@ -46,7 +49,8 @@ const CELLS: Cell[] = [
   { id: 4, col: 1, row: 0, label: 'RELAXED MODE', desc: 'slower teacher, +50% time', color: '#06b57f' },
   { id: 5, col: 1, row: 1, label: 'CALM MOTION', desc: 'no bouncy pop-ins', color: '#d6407f' },
   { id: 6, col: 1, row: 2, label: 'THROW ASSIST', desc: 'snacks aim for you', color: '#e07a00' },
-  { id: 7, col: 1, row: 3, label: 'DONE', desc: 'close settings', color: '#2ec4b6' },
+  { id: 9, col: 1, row: 3, label: 'SEAT HEIGHT', desc: 'eyes never drop below it', color: '#118ab2' },
+  { id: 7, col: 0, row: 4, label: 'DONE', desc: 'close settings', color: '#2ec4b6', center: true },
 ];
 
 function valueText(id: number): string {
@@ -65,6 +69,8 @@ function valueText(id: number): string {
       return SETTINGS.calm ? 'ON' : 'OFF';
     case 6:
       return ASSIST_NAMES[SETTINGS.assist];
+    case 9:
+      return HEIGHT_NAMES[SETTINGS.height];
     default:
       return '';
   }
@@ -118,6 +124,7 @@ export class SettingsSystem extends createSystem({
       new PlaneGeometry(PANEL_W, PANEL_H),
       new MeshBasicMaterial({ map: tex(pcv), transparent: true, depthWrite: false }),
     );
+    plate.position.y = PLATE_DY;
     plate.renderOrder = 8;
     this.panel.add(plate);
 
@@ -128,7 +135,7 @@ export class SettingsSystem extends createSystem({
       const g = cv.getContext('2d')!;
       const t = tex(cv);
       const mesh = new Mesh(geo, new MeshBasicMaterial({ map: t, transparent: true, depthWrite: false }));
-      mesh.position.set(COL_X[c.col], ROW_Y[c.row], 0.004);
+      mesh.position.set(c.center ? 0 : COL_X[c.col], ROW_Y[c.row], 0.004);
       mesh.renderOrder = 9;
       this.cellMesh.set(c.id, mesh);
       this.cellCtx.set(c.id, g);
@@ -157,7 +164,7 @@ export class SettingsSystem extends createSystem({
 
     this.queries.pressed.subscribe('qualify', (e) => this.onPressed(e.getValue(SettingsButton, 'id') as number));
     onSettingsChange(() => {
-      for (const c of CELLS) if (c.id < 7) this.paintCell(c);
+      for (const c of CELLS) if (c.id !== 7) this.paintCell(c);
     });
   }
 
@@ -184,6 +191,9 @@ export class SettingsSystem extends createSystem({
         break;
       case 6:
         changeSettings({ assist: (S.assist + 1) % 3 });
+        break;
+      case 9:
+        changeSettings({ height: (S.height + 1) % 3 });
         break;
       case 7:
         this.close();

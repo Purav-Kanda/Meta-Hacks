@@ -167,9 +167,10 @@ export class ExamSystem extends createSystem({
       const b = makeCanvasTex(Math.round(BTN_W * PX_PER_M), Math.round(BTN_H * PX_PER_M));
       this.btnCtx.push(b.g);
       this.btnTex.push(b.tex);
-      const mat = new MeshStandardMaterial({ map: b.tex, roughness: 0.7, transparent: true });
+      const mat = new MeshStandardMaterial({ map: b.tex, roughness: 0.7, transparent: true, depthWrite: false });
       const mesh = new Mesh(btnGeo, mat);
       mesh.name = `AnswerButton${i}`;
+      mesh.renderOrder = 1;
       mesh.position.set(0, BTN_Y[i], 0.006);
       this.btnMesh.push(mesh);
       const ent = this.world.createTransformEntity(mesh, sheetEntity);
@@ -183,7 +184,7 @@ export class ExamSystem extends createSystem({
     this.bannerTex = bn.tex;
     this.bannerMesh = new Mesh(
       new PlaneGeometry(0.5, 0.125),
-      new MeshBasicMaterial({ map: bn.tex, transparent: true }),
+      new MeshBasicMaterial({ map: bn.tex, transparent: true, depthWrite: false }),
     );
     this.bannerMesh.position.set(0, 1.22, -0.8);
     this.bannerMesh.renderOrder = 5;

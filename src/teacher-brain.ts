@@ -11,32 +11,49 @@ export interface Waypoint {
   lookAt?: [number, number];
 }
 
+// Front-row seat: after stopping beside you she keeps walking to the end of the aisle (back wall), so she
+// ends up behind you and you can cheat. For the back row this waypoint sits on the stand spot (no extra walk).
+const endWp = (x: number, off: number): Waypoint => ({
+  x,
+  get z() { return SEATING.endZ - off; },
+  get pause() { return SEATING.endZ === SEATING.standZ ? 0 : 1.2; },
+  lookAt: SEATING.look,
+});
+const END_R = endWp(0.75, 0);
+const END_L = endWp(-0.75, 0);
+const OUT_END_L = endWp(-2.6, 0.65);
+const OUT_END_R = endWp(2.6, 0.65);
+
 // Floor plan: desks sit at x = -1.5, 0, 1.5. Aisles run at x = +-0.75 (0.5 m wide, she fits).
 // She never walks behind the player's chair, where a seated player cannot see her.
 export const PATROL: Waypoint[] = [
   { x: 0, z: -3.9, pause: 2, lookAt: [0, 0] },
   { x: 0.75, z: -3.3 },
-  { x: 0.65, get z() { return SEATING.standZ; }, pause: 1.6, lookAt: SEATING.look },
+  { x: 0.75, get z() { return SEATING.standZ; }, pause: 1.6, lookAt: SEATING.look },
+  END_R,
   { x: 0.75, z: -3.3 },
   { x: 0, z: -3.9, pause: 1, lookAt: [0, 0] },
   { x: -0.75, z: -3.3 },
   { x: -0.75, get z() { return SEATING.standZ; }, pause: 1.6, lookAt: SEATING.look },
+  END_L,
   { x: -0.75, z: -3.3 },
 ];
 
 /**
  * The second teacher (Not Easy). She walks the outer lanes beside the neighbours, so she never shares the
- * aisles with the first teacher, and cuts across the front by the aisle tops. Indexes 3 and 8 are the
+ * aisles with the first teacher, and cuts across the front by the aisle tops. Indexes 4 and 10 are the
  * aisle tops she resumes from after a catch.
  */
 export const PATROL_OUTER: Waypoint[] = [
   { x: -2.6, z: -3.8, pause: 1.2, lookAt: [0, 0] },
   { x: -2.6, get z() { return SEATING.standZ - 0.65; }, pause: 1.6, lookAt: SEATING.look },
+  OUT_END_L,
   { x: -2.6, z: -3.8 },
   { x: -0.75, z: -3.3 },
   { x: 0.75, z: -3.3 },
   { x: 2.6, z: -3.8, pause: 1.2, lookAt: [0, 0] },
   { x: 2.6, get z() { return SEATING.standZ - 0.65; }, pause: 1.6, lookAt: SEATING.look },
+  OUT_END_R,
   { x: 2.6, z: -3.8 },
   { x: 0.75, z: -3.3 },
   { x: -0.75, z: -3.3 },

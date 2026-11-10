@@ -48,7 +48,11 @@ World.create(
   const qp = new URLSearchParams(window.location.search);
   const scale = Math.min(2, Math.max(0.5, Number(qp.get('scale')) || 1.0));
   world.renderer.xr.setFramebufferScaleFactor(scale);
-  world.renderer.xr.setFoveation(0.3);
+  world.renderer.xr.setFoveation(0); // foveated rendering shimmers at the edges; this scene is light enough without it
+  // the room is 8 m across, so a tight depth range keeps close surfaces from fighting (z-fighting = random flicker)
+  world.camera.near = 0.12;
+  world.camera.far = 30;
+  world.camera.updateProjectionMatrix();
   if (!qp.has('rawmouse')) guardMouse();
   if (qp.has('fps')) showFps(world.renderer.info, scale);
   if (qp.has('clicklog')) showClickLog(world);

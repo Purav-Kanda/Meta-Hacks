@@ -105,8 +105,11 @@ export class CribModel {
     this.z = Math.max(ROOM_REACH.z0, Math.min(ROOM_REACH.z1, z));
     this.y = y;
     this.vy = 0;
-    // let go above the desk top and it lands on the desk; anywhere else it goes all the way to the floor
-    this.groundY = overDesk(this.x, this.z) && y >= DESK_TOP_Y - 0.005 ? DESK_TOP_Y + 0.012 : FLOOR_Y;
+    // let go anywhere over the desk (at or above the tuck height) and it lands ON the desk, never through it;
+    // anywhere else it goes all the way to the floor
+    const onDesk = overDesk(this.x, this.z) && y >= TUCK_Y;
+    this.groundY = onDesk ? DESK_TOP_Y + 0.012 : FLOOR_Y;
+    if (onDesk && this.y < this.groundY) this.y = this.groundY;
     this.state = 'falling';
     this.dropSeq += 1;
     return 'falling';

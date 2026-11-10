@@ -15,6 +15,7 @@ import {
   VisibilityState,
   createSystem,
 } from '@iwsdk/core';
+import { eyeHeight, onSettingsChange } from './settings.js';
 import { COL_X, HOME_COL, HOME_ROW, ROW_Z, SEATING, SIT_BEHIND } from './seating.js';
 
 // ---------- tiny helpers (kept allocation-free at runtime, all built once in init) ----------
@@ -211,13 +212,13 @@ function makeChair(): Group {
   return chair;
 }
 
-// Seated eye height the room is built around (kids' heads sit near 1.0-1.2 m).
-const SEATED_EYE_Y = 1.1;
 
 export class ClassroomSystem extends createSystem({}) {
   roomEntity!: Entity;
   private roomRoot!: Group;
   private headPos!: Vector3;
+  private waitTime = 0;
+  private eyeY = 1.3;
   private calibrated = false;
   readonly kids: Group[] = [];
   /** floor, walls, board and wall decor; moved by setShell so your seat is really somewhere else in the room */
@@ -232,6 +233,11 @@ export class ClassroomSystem extends createSystem({}) {
   private clock = 0;
 
   init(): void {
+    // a new seat height re-aligns the room on the next frame
+    onSettingsChange(() => {
+      this.calibrated = false;
+      this.waitTime = 1;
+    });
     this.headPos = new Vector3();
     const room = new Group();
     this.roomRoot = room;
@@ -401,7 +407,7 @@ export class ClassroomSystem extends createSystem({}) {
 
   // Headsets report real head height (an emulator stands at ~1.6 m, a seated
   // player is ~1.2 m). Shift the room once per XR session so the player's eyes
-  // always land at SEATED_EYE_Y relative to the kids and desks.
+  // always land at the seat-height setting (eyeHeight()) relative to the kids and desks.
   update(delta: number): void {
     // classmates fidget: a slow breathing bob and a little sway, each on its own rhythm
     this.clock += Math.min(delta, 0.1);
@@ -416,13 +422,27 @@ export class ClassroomSystem extends createSystem({}) {
       this.world.visibilityState.peek() !== VisibilityState.NonImmersive;
     if (!immersive) {
       this.calibrated = false;
+      this.waitTime = 0;
+      this.world.player.position.y = 0;
       this.roomRoot.position.y = 0;
       return;
     }
-    if (this.calibrated) return;
+    const rig = this.world.player;
+    // where the head is without our own lift (the rig is only ever lifted by this code)
     this.world.camera.getWorldPosition(this.headPos);
-    if (this.headPos.y < 0.5) return; // tracking not ready yet
-    this.roomRoot.position.y = this.headPos.y - SEATED_EYE_Y;
-    this.calibrated = true;
+    const rawY = this.headPos.y - rig.position.y;
+    if (!this.calibrated) {
+      // tracking not ready yet: wait, but only briefly. Some setups report the head near 0 (the origin is the
+      // headset itself, not the floor); after 1 s go with what we have so the view never stays at table level.
+      this.waitTime += Math.min(delta, 0.1);
+      if (rawY < 0.5 && this.waitTime < 1) return;
+      this.eyeY = eyeHeight();
+      this.roomRoot.position.y = rawY - this.eyeY;
+      this.calibrated = true;
+    }
+    // hard floor: ducking or slouching below the chosen seat height lifts you back up, so the view never drops
+    // under it. Sitting taller or standing just raises your eyes (the room does not follow).
+    const need = this.roomRoot.position.y + this.eyeY - rawY;
+    rig.position.y = need > 0 ? need : 0;
   }
 }

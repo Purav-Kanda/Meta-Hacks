@@ -224,7 +224,7 @@ export class FruitSystem extends createSystem({
     const lab = canvasTex(320, 120);
     this.bowlLabelG = lab.g;
     this.bowlLabelTex = lab.tex;
-    const label = new Mesh(new PlaneGeometry(0.16, 0.06), new MeshBasicMaterial({ map: lab.tex, transparent: true }));
+    const label = new Mesh(new PlaneGeometry(0.16, 0.06), new MeshBasicMaterial({ map: lab.tex, transparent: true, depthWrite: false }));
     label.position.set(BOWL.x, BOWL.y + 0.16, BOWL.z + 0.12);
     label.rotation.y = Math.atan2(-BOWL.x, 0.2 - BOWL.z);
     this.world.createTransformEntity(label, room);
@@ -286,7 +286,7 @@ export class FruitSystem extends createSystem({
       b.g.font = `bold 84px ${FONT}`;
       b.g.fillText('THROW!', 180, 92);
       b.tex.needsUpdate = true;
-      const bubble = new Mesh(new PlaneGeometry(0.75, 0.45), new MeshBasicMaterial({ map: b.tex, transparent: true }));
+      const bubble = new Mesh(new PlaneGeometry(0.75, 0.45), new MeshBasicMaterial({ map: b.tex, transparent: true, depthWrite: false }));
       bubble.position.set(ZONE_X[z], 1.75, ZONE_Z);
       bubble.rotation.y = Math.atan2(-ZONE_X[z], 0.2 - ZONE_Z);
       bubble.renderOrder = 4;

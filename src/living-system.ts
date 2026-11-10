@@ -46,7 +46,7 @@ function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D, w: 
 function wallBoard(tex: CanvasTexture, w: number, h: number, x: number, y: number, z: number, faceYaw: number): Group {
   const g = new Group();
   const frame = new Mesh(new BoxGeometry(w + 0.06, h + 0.06, 0.03), std(0x6b4423));
-  frame.position.z = -0.016;
+  frame.position.z = -0.026; // front of the frame 1 cm behind the picture (1 mm made them shimmer from across the room)
   g.add(frame);
   const face = new Mesh(new PlaneGeometry(w, h), new MeshBasicMaterial({ map: tex }));
   g.add(face);

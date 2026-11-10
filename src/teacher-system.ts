@@ -7,8 +7,6 @@ import {
   DoubleSide,
   Float32BufferAttribute,
   Group,
-  LineBasicMaterial,
-  LineLoop,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -30,7 +28,7 @@ import { PuffPool } from './effects.js';
 import { roundStats } from './progress.js';
 import { SEATING } from './seating.js';
 import { SCARE, scareDuration, scarePose, scareTarget } from './scare.js';
-import { SETTINGS } from './settings.js';
+import { SETTINGS, eyeHeight } from './settings.js';
 import { sfx } from './sfx.js';
 
 const CONE_CALM = 0xffe066; // she has not spotted you
@@ -149,7 +147,7 @@ function buildExclaim(char = '!', color = '#d62839'): Mesh {
   tex.colorSpace = SRGBColorSpace;
   const m = new Mesh(
     new PlaneGeometry(0.34, 0.34),
-    new MeshBasicMaterial({ map: tex, transparent: true }),
+    new MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
   );
   m.position.y = 2.0;
   m.visible = false;
@@ -179,16 +177,32 @@ function buildCone(range: number, halfAngle: number): Mesh {
   cone.position.y = 0.03;
   cone.renderOrder = 2;
 
-  // bright rim so the edge reads clearly on the wood
-  const rim: number[] = [0, 0, 0];
+  // bright rim so the edge reads clearly on the wood. A flat ribbon, not a GL line: 1-pixel lines shimmer
+  // and flicker in a headset, a ribbon of real width does not.
+  const path: Array<[number, number]> = [[0, 0]];
   for (let i = 0; i <= CONE_SEGMENTS; i++) {
     const a = -halfAngle + (2 * halfAngle * i) / CONE_SEGMENTS;
-    rim.push(Math.sin(a) * range, 0, -Math.cos(a) * range);
+    path.push([Math.sin(a) * range, -Math.cos(a) * range]);
+  }
+  path.push([0, 0]);
+  const rimPos: number[] = [];
+  const rimIdx: number[] = [];
+  const RIM_HALF = 0.014;
+  for (let i = 0; i < path.length - 1; i++) {
+    const [x0, z0] = path[i];
+    const [x1, z1] = path[i + 1];
+    const len = Math.hypot(x1 - x0, z1 - z0) || 1;
+    const nx = (-(z1 - z0) / len) * RIM_HALF;
+    const nz = ((x1 - x0) / len) * RIM_HALF;
+    const k = rimPos.length / 3;
+    rimPos.push(x0 + nx, 0, z0 + nz, x0 - nx, 0, z0 - nz, x1 + nx, 0, z1 + nz, x1 - nx, 0, z1 - nz);
+    rimIdx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
   }
   const rimGeo = new BufferGeometry();
-  rimGeo.setAttribute('position', new Float32BufferAttribute(rim, 3));
-  const outline = new LineLoop(rimGeo, new LineBasicMaterial({ color: 0xfff7b0 }));
-  outline.position.y = 0.005;
+  rimGeo.setAttribute('position', new Float32BufferAttribute(rimPos, 3));
+  rimGeo.setIndex(rimIdx);
+  const outline = new Mesh(rimGeo, new MeshBasicMaterial({ color: 0xfff7b0, side: DoubleSide, depthWrite: false }));
+  outline.position.y = 0.02; // 2 cm above the fan, which itself floats 3 cm over the floor
   outline.renderOrder = 3;
   cone.add(outline);
   return cone;
@@ -204,7 +218,7 @@ class TeacherActor {
   readonly question: Mesh;
   readonly coneMesh: Mesh;
   readonly coneMat: MeshBasicMaterial;
-  readonly rimMat: LineBasicMaterial;
+  readonly rimMat: MeshBasicMaterial;
   seesPlayer = false;
   private shownScale = 1;
   private shownMode = '';
@@ -226,7 +240,7 @@ class TeacherActor {
     const cone = buildCone(BUILT_VISION_RANGE, ACTIVE_TUNING.visionHalfAngle);
     this.coneMesh = cone;
     this.coneMat = cone.material as MeshBasicMaterial;
-    this.rimMat = (cone.children[0] as LineLoop).material as LineBasicMaterial;
+    this.rimMat = (cone.children[0] as Mesh).material as MeshBasicMaterial;
     this.root.add(cone);
     this.exclaim = buildExclaim();
     this.root.add(this.exclaim);
@@ -286,7 +300,8 @@ class TeacherActor {
   pose(clock: number, lean: number, scale: number, shake: number, mark: number): void {
     this.body.scale.setScalar(scale);
     this.body.rotation.x = -lean;
-    this.body.position.y = Math.sin(clock * 70) * 0.012 * shake;
+    // crouch as she leans in, so her angry face lands in front of your eyes instead of above them
+    this.body.position.y = (eyeHeight() - 1.43) * (Math.max(0, lean) / 0.32) + Math.sin(clock * 70) * 0.012 * shake;
     this.body.rotation.z = Math.sin(clock * 55) * 0.07 * shake;
     this.skin.color.setHex(SKIN_ANGRY);
     this.brows.visible = true;
@@ -329,7 +344,7 @@ export class TeacherSystem extends createSystem({}) {
   private readonly first = new TeacherActor(new TeacherAI(PATROL, ACTIVE_TUNING), 'Teacher', 0x118ab2);
   /** the second teacher, only in the room in Not Easy */
   private readonly second = new TeacherActor(
-    new TeacherAI(PATROL_OUTER, ACTIVE_TUNING, { right: 8, left: 3, distract: 0 }),
+    new TeacherAI(PATROL_OUTER, ACTIVE_TUNING, { right: 10, left: 4, distract: 0 }),
     'Teacher2',
     0x7b2cbf,
   );

@@ -9,7 +9,7 @@ export const SCARE = {
 };
 
 /** how far from your head she stops (the face leans in closer than this) */
-export const SCARE_DISTANCE = 1.42;
+export const SCARE_DISTANCE = 1.25;
 
 export function scareDuration(calm: boolean): number {
   return calm ? 1.0 : 1.9;
@@ -53,17 +53,17 @@ export function scarePose(t: number, calm: boolean): ScarePose {
     const k = clamp01((t - 0.3) / 0.35);
     const e = k * k * k; // slow start, fast finish
     move = e;
-    lean = -0.18 + (0.7 + 0.18) * e;
+    lean = -0.18 + (0.32 + 0.18) * e;
     scale = 1.03 + 0.05 * e;
   } else if (t < 1.45) {
     move = 1;
-    lean = 0.7;
+    lean = 0.32;
     scale = 1.08;
     shake = 1;
   } else {
     const k = smooth(clamp01((t - 1.45) / (total - 1.45)));
     move = 1 - k;
-    lean = 0.7 * (1 - k);
+    lean = 0.32 * (1 - k);
     scale = 1.08 - 0.08 * k;
     shake = 1 - k;
   }

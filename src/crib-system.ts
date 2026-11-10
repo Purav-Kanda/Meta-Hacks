@@ -17,7 +17,7 @@ import {
   createSystem,
 } from '@iwsdk/core';
 import { ClassroomSystem } from './classroom.js';
-import { CribModel } from './crib.js';
+import { CribModel, DESK_TOP_Y, overDesk } from './crib.js';
 import { CribGrab } from './exam-components.js';
 import { ExamSystem } from './exam-system.js';
 import { roundStats } from './progress.js';
@@ -29,7 +29,11 @@ import { ACTIVE_TUNING, onTuningChange } from './tuning.js';
 const FONT = '"Comic Sans MS", "Chalkboard SE", "Trebuchet MS", sans-serif';
 const TRAY_POS = new Vector3(0, 0.655, -0.1); // a tray hanging under the front of your desk
 const LOOK_COS = Math.cos((30 * Math.PI) / 180); // gaze within 30 degrees of the sheet counts as looking at it
-const TILT = -Math.atan2(1.1 - TRAY_POS.y, 0.2 - TRAY_POS.z); // face the sheet toward your eyes (seated eye ~ (0,1.1,0.2))
+const TUCK_Y_LOW = 0.74; // below this over the desk you are reaching under it (the tray)
+const REGRAB_DELAY = 0.45; // seconds before the sheet can be grabbed again after letting go
+// held over the desk, the sheet's lowest edge sits this far under its centre (it is tilted toward your eyes)
+const HELD_CLEARANCE = 0.09;
+const TILT = -Math.atan2(1.3 - TRAY_POS.y, 0.2 - TRAY_POS.z); // face the sheet toward your eyes (seated eye ~ (0,1.3,0.2))
 
 /**
  * The crib sheet: grab it from the tray under your desk (trigger or pinch), lift it above the desk and look
@@ -57,6 +61,7 @@ export class CribSystem extends createSystem({
   private seenDrop = 0;
   private seenLand = 0;
   private seenTuck = 0;
+  private regrabWait = 0;
 
   init(): void {
     onTuningChange(() => {
@@ -97,7 +102,7 @@ export class CribSystem extends createSystem({
     this.tex = new CanvasTexture(cv);
     this.tex.anisotropy = 16;
     this.tex.colorSpace = SRGBColorSpace;
-    this.sheet = new Mesh(new PlaneGeometry(0.26, 0.34), new MeshBasicMaterial({ map: this.tex, transparent: true, side: 2 }));
+    this.sheet = new Mesh(new PlaneGeometry(0.26, 0.34), new MeshBasicMaterial({ map: this.tex, transparent: true, depthWrite: false, side: 2 }));
     // an invisible bigger ball so it is easy to grab
     this.sheet.add(new Mesh(new SphereGeometry(0.2, 8, 6), new MeshBasicMaterial({ visible: false })));
     this.sheet.visible = false;
@@ -110,6 +115,9 @@ export class CribSystem extends createSystem({
       if (this.model.grab()) {
         this.sheet.rotation.set(TILT, 0, 0);
         sfx.rustle();
+      } else {
+        // the model says no (it is falling or gone): do not let the hand drag it around against the model
+        this.world.getSystem(GrabSystem)?.forceRelease(this.sheetEntity);
       }
     });
     this.queries.held.subscribe('disqualify', () => {
@@ -117,6 +125,8 @@ export class CribSystem extends createSystem({
       const p = this.sheet.position;
       const where = this.model.release(p.x, p.y, p.z);
       if (where === 'tray') this.poseInTray();
+      // a pinch that flickers (the tracking loses it for a frame) must not grab again at once, drop again, and loop
+      this.regrabWait = REGRAB_DELAY;
     });
     this.paint('idle');
   }
@@ -166,10 +176,13 @@ export class CribSystem extends createSystem({
     if (!ROUND.allows('crib')) return;
 
     // only grabbable while it is in the tray or lying somewhere (not while it falls, not once confiscated)
-    this.setGrabbable(m.state === 'tray' || m.state === 'held' || m.state === 'rest');
+    this.regrabWait = Math.max(0, this.regrabWait - dt);
+    this.setGrabbable((m.state === 'tray' || m.state === 'held' || m.state === 'rest') && (m.state === 'held' || this.regrabWait <= 0));
 
     if (m.state === 'held') {
       const p = this.sheet.position;
+      // over the desk it rides on top of the desk, it never sinks into the table (under the desk is the tuck zone)
+      if (overDesk(p.x, p.z) && p.y > TUCK_Y_LOW && p.y < DESK_TOP_Y + HELD_CLEARANCE) p.y = DESK_TOP_Y + HELD_CLEARANCE;
       m.setHeld(p.x, p.y, p.z);
     }
 

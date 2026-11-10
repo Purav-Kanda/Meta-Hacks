@@ -94,7 +94,7 @@ export class SeatSystem extends createSystem({
     this.tagTex = new CanvasTexture(tv);
     this.tagTex.anisotropy = 16;
     this.tagTex.colorSpace = SRGBColorSpace;
-    this.tag = new Mesh(new PlaneGeometry(0.15, 0.05), new MeshBasicMaterial({ map: this.tagTex, transparent: true }));
+    this.tag = new Mesh(new PlaneGeometry(0.15, 0.05), new MeshBasicMaterial({ map: this.tagTex, transparent: true, depthWrite: false }));
     this.tag.rotation.x = -Math.PI / 2 + 0.25;
     this.tag.position.copy(TAG_POS);
     this.world.createTransformEntity(this.tag, classroom.seatEntity);
