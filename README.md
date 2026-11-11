@@ -1,4 +1,4 @@
-# Pop Quiz Panic (working title)
+# Pop Quiz Panic 
 
 A goofy seated VR exam-cheating game for the Meta VR Start Developer Competition 2026.
 Built with the Immersive Web SDK (WebXR). Hands only, no controllers.
