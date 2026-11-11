@@ -40,7 +40,7 @@ export const LESSONS: readonly Lesson[] = [
     text: 'Point at the sheet in the tray under your desk, pinch and hold to grab it. Lift it to read, then tuck it back.',
     praise: 'Notes read. Dropped or held up, she can see it!',
     done: (s) => s.cribReads >= 1,
-    arrow: [[0, 0.86, -0.1]],
+    arrow: [[0, 0.86, -0.07]],
   },
   {
     id: 'phone',

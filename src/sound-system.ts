@@ -18,11 +18,18 @@ export class SoundSystem extends createSystem({
   init(): void {
     const unlock = () => sfx.unlock();
     for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(ev, unlock);
-    this.world.renderer.xr.addEventListener('sessionstart', unlock);
+    document.addEventListener('visibilitychange', unlock);
+    this.world.renderer.xr.addEventListener('sessionstart', () => {
+      unlock();
+      // hand pinches don't fire normal page events, but XR select events count as a user gesture
+      const session = this.world.renderer.xr.getSession();
+      if (session) for (const ev of ['selectstart', 'select', 'squeezestart', 'visibilitychange']) session.addEventListener(ev, unlock);
+    });
     this.queries.pressed.subscribe('qualify', (_e: Entity) => sfx.click());
   }
 
   update(): void {
+    sfx.keepAlive(performance.now());
     const ex = this.world.getSystem(ExamSystem)!.exam;
     const ts = this.world.getSystem(TeacherSystem)!;
     const ph = this.world.getSystem(PhoneSystem)!.model;

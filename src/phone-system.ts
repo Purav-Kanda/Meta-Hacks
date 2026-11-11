@@ -1,5 +1,4 @@
 import {
-  AdditiveBlending,
   BoxGeometry,
   CanvasTexture,
   Entity,
@@ -51,14 +50,15 @@ function canvasTex(w: number, h: number) {
   return { g, tex };
 }
 
-function glowTexture(): CanvasTexture {
-  const c = canvasTex(256, 256);
-  const grad = c.g.createRadialGradient(128, 128, 8, 128, 128, 128);
-  grad.addColorStop(0, 'rgba(120,230,255,0.95)');
-  grad.addColorStop(0.45, 'rgba(70,170,255,0.45)');
-  grad.addColorStop(1, 'rgba(70,170,255,0)');
-  c.g.fillStyle = grad;
-  c.g.fillRect(0, 0, 256, 256);
+/** the "searching..." spinner: drawn once, then just turned (re-uploading a canvas texture ten times a second made the phone flicker) */
+function spinnerTexture(): CanvasTexture {
+  const c = canvasTex(140, 140);
+  c.g.strokeStyle = '#5ee1ff';
+  c.g.lineWidth = 16;
+  c.g.lineCap = 'round';
+  c.g.beginPath();
+  c.g.arc(70, 70, 56, 0, 4.2);
+  c.g.stroke();
   c.tex.needsUpdate = true;
   return c.tex;
 }
@@ -87,8 +87,7 @@ export class PhoneSystem extends createSystem({
   private deskPhone!: Mesh;
   private tape!: Mesh;
   private raised!: Group;
-  private halo!: Mesh;
-  private haloMat!: MeshBasicMaterial;
+  private spinner!: Mesh;
   private screenG!: CanvasRenderingContext2D;
   private screenTex!: CanvasTexture;
   private askG!: CanvasRenderingContext2D;
@@ -161,11 +160,11 @@ export class PhoneSystem extends createSystem({
     this.screenTex = s.tex;
     const screen = new Mesh(new PlaneGeometry(0.14, 0.26), new MeshBasicMaterial({ map: s.tex }));
     this.raised.add(screen);
-    this.haloMat = new MeshBasicMaterial({ map: glowTexture(), transparent: true, blending: AdditiveBlending, depthWrite: false });
-    this.halo = new Mesh(new PlaneGeometry(0.5, 0.5), this.haloMat);
-    this.halo.position.z = -0.03;
-    this.halo.renderOrder = 3;
-    this.raised.add(this.halo);
+    this.spinner = new Mesh(new PlaneGeometry(0.07, 0.07), new MeshBasicMaterial({ map: spinnerTexture(), transparent: true, depthWrite: false }));
+    this.spinner.position.set(0, 0.02, 0.003);
+    this.spinner.renderOrder = 4;
+    this.spinner.visible = false;
+    this.raised.add(this.spinner);
     const phoneEntity = this.world.createTransformEntity(this.raised, classroom.seatEntity);
 
     const a = canvasTex(300, 135);
@@ -252,13 +251,14 @@ export class PhoneSystem extends createSystem({
     this.tape.visible = m.state === 'gone';
     this.raised.visible = m.state === 'up';
     if (m.state !== 'up') return;
-    this.haloMat.opacity = 0.5 + 0.08 * Math.sin(this.clock * 3); // a calm glow: a big fast pulse right in front of your eyes reads as flicker
     const spot = HIDE_SPOTS[m.hideSlot];
     this.hideMesh.position.x = spot[0];
     this.hideMesh.position.y = spot[1];
 
     const mode = m.buffering ? 'buffer' : m.answer >= 0 ? 'answer' : m.cooldownLeft > 0 ? 'cool' : 'ready';
-    const tick = mode === 'buffer' ? Math.floor(this.clock * 10) : mode === 'cool' ? Math.ceil(m.cooldownLeft) : m.answer;
+    const tick = mode === 'buffer' ? 0 : mode === 'cool' ? Math.ceil(m.cooldownLeft) : m.answer;
+    this.spinner.visible = mode === 'buffer';
+    if (mode === 'buffer') this.spinner.rotation.z = -this.clock * 8;
     const key = `${mode}|${tick}`;
     if (key !== this.shownScreen) {
       this.shownScreen = key;
@@ -310,13 +310,6 @@ export class PhoneSystem extends createSystem({
     g.fillText('HELPBOT', w / 2, 38);
 
     if (mode === 'buffer') {
-      const a0 = this.clock * 8;
-      g.strokeStyle = '#5ee1ff';
-      g.lineWidth = 16;
-      g.lineCap = 'round';
-      g.beginPath();
-      g.arc(w / 2, 220, 56, a0, a0 + 4.2);
-      g.stroke();
       g.fillStyle = '#cfe9ff';
       g.font = `bold 34px ${FONT}`;
       g.fillText('searching...', w / 2, 330);

@@ -20,7 +20,7 @@ import { SEATING } from './seating.js';
 import { sfx } from './sfx.js';
 
 const FONT = '"Comic Sans MS", "Chalkboard SE", "Trebuchet MS", sans-serif';
-const EYE = new Vector3(0, 1.1, 0.2);
+const EYE = new Vector3(0, 1.3, 0.2);
 const CARD_POS = new Vector3(0, 1.14, -0.75);
 const SPIN_SECONDS = 2.8; // the seating chart flickers between seats, slowing down, then lands
 const TOTAL_SECONDS = 11.0; // then the reveal; it ends by itself or when you click

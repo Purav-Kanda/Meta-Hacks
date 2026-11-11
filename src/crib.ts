@@ -27,6 +27,24 @@ const TUCK = { x: 0.55, z0: -0.85, z1: 0.25 };
 const DESK = { x: 0.5, z0: -0.85, z1: -0.25 };
 const ROOM_REACH = { x: 0.95, z0: -0.95, z1: 0.5 }; // a dropped sheet lands inside this box (so it can be reached)
 
+// Around the desk the held sheet is either UNDER it (flat, below the underside at y 0.725) or OVER all the clutter on it
+// (the exam easel reaches y 1.02, the lunchbox lid about 0.95), never through any of it. The zone is the desk widened by
+// the sheet's own half size (0.13 x 0.17). Which side it is on is decided when it is outside the zone, so to bring a
+// sheet from the tray onto the desk you lift it before you reach over, and to hide it you lower it before reaching in.
+const DESK_ZONE = { x: DESK.x + 0.13, z0: DESK.z0 - 0.17, z1: DESK.z1 + 0.17 };
+export const UNDER_MAX_Y = 0.7;
+export const OVER_MIN_Y = 1.12;
+export const inDeskZone = (x: number, z: number): boolean => Math.abs(x) < DESK_ZONE.x && z > DESK_ZONE.z0 && z < DESK_ZONE.z1;
+
+// your chair seat (0.42 x 0.42, top at y 0.475): a sheet dropped over it lands on it, not under it
+const SEAT = { x: 0.23, z0: -0.02, z1: 0.42, top: 0.475 };
+/** the height a sheet let go at (x, z) comes to rest at */
+export const groundAt = (x: number, z: number): number =>
+  Math.abs(x) < SEAT.x && z > SEAT.z0 && z < SEAT.z1 ? SEAT.top + 0.012 : FLOOR_Y;
+
+/** let go over the desk: it floats up over the clutter, drifts off the desk edge toward you, then drops */
+const GLIDE = { speed: 1.4, rise: 1.4, y: 1.12, z: -0.04, xMax: 0.3 };
+
 export const overDesk = (x: number, z: number): boolean => Math.abs(x) < DESK.x && z > DESK.z0 && z < DESK.z1;
 export const inTuckZone = (x: number, y: number, z: number): boolean => y < TUCK_Y && Math.abs(x) < TUCK.x && z > TUCK.z0 && z < TUCK.z1;
 
@@ -44,6 +62,12 @@ export class CribModel {
   z = 0;
   private vy = 0;
   private groundY = FLOOR_Y;
+  /** drifting off the desk toward (tx, tz) before it drops */
+  private gliding = false;
+  private tx = 0;
+  private tz = 0;
+  /** held under the desk (true) or over it (false); only changes while the sheet is outside the desk zone */
+  under = true;
   /** event counters so other systems can play a sound once per event */
   dropSeq = 0;
   landSeq = 0;
@@ -72,15 +96,27 @@ export class CribModel {
     this.lookTimer = 0;
     this.reads = 0;
     this.vy = 0;
+    this.gliding = false;
+    this.under = true;
     this.wasReading = false;
   }
 
   /** the player grabbed it (from the tray, the desk or the floor). Only works if it is not already moving or gone. */
   grab(): boolean {
     if (this.state !== 'tray' && this.state !== 'rest') return false;
+    this.under = this.state === 'tray';
     this.state = 'held';
     this.lookTimer = 0;
     return true;
+  }
+
+  /** the height the held sheet may really have: never through the desk slab or the things standing on it */
+  constrainHeld(x: number, y: number, z: number): number {
+    if (!inDeskZone(x, z)) {
+      this.under = y < TUCK_Y;
+      return y;
+    }
+    return this.under ? Math.min(y, UNDER_MAX_Y) : Math.max(y, OVER_MIN_Y);
   }
 
   /** while held, the system tells us where the hand has it */
@@ -105,11 +141,16 @@ export class CribModel {
     this.z = Math.max(ROOM_REACH.z0, Math.min(ROOM_REACH.z1, z));
     this.y = y;
     this.vy = 0;
-    // let go anywhere over the desk (at or above the tuck height) and it lands ON the desk, never through it;
-    // anywhere else it goes all the way to the floor
-    const onDesk = overDesk(this.x, this.z) && y >= TUCK_Y;
-    this.groundY = onDesk ? DESK_TOP_Y + 0.012 : FLOOR_Y;
-    if (onDesk && this.y < this.groundY) this.y = this.groundY;
+    if (inDeskZone(this.x, this.z) && y >= TUCK_Y) {
+      // above the desk: it must not drop onto the lunchbox, the easel or the phone, so it drifts off the edge first
+      this.gliding = true;
+      this.tx = Math.max(-GLIDE.xMax, Math.min(GLIDE.xMax, this.x));
+      this.tz = GLIDE.z;
+      this.groundY = groundAt(this.tx, this.tz);
+    } else {
+      this.gliding = false;
+      this.groundY = groundAt(this.x, this.z);
+    }
     this.state = 'falling';
     this.dropSeq += 1;
     return 'falling';
@@ -128,7 +169,24 @@ export class CribModel {
 
   /** returns true on the frame a new read starts (so the caller can play a sound / count it) */
   update(dt: number, gazeOnSheet: boolean): boolean {
-    if (this.state === 'falling') {
+    if (this.state === 'falling' && this.gliding) {
+      // first up over everything on the desk, then sideways off the edge
+      if (this.y < GLIDE.y) this.y = Math.min(GLIDE.y, this.y + GLIDE.rise * dt);
+      else {
+        const dx = this.tx - this.x;
+        const dz = this.tz - this.z;
+        const d = Math.hypot(dx, dz);
+        const step = GLIDE.speed * dt;
+        if (d <= step) {
+          this.x = this.tx;
+          this.z = this.tz;
+          this.gliding = false;
+        } else {
+          this.x += (dx / d) * step;
+          this.z += (dz / d) * step;
+        }
+      }
+    } else if (this.state === 'falling') {
       // paper drifts down slowly (air drag caps the fall speed)
       this.vy = Math.max(this.vy - 7 * dt, -1.5);
       this.y += this.vy * dt;

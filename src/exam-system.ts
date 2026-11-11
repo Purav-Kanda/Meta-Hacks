@@ -46,7 +46,8 @@ const SHEET_TILT = 0.5;
 const DEBUG_CHEAT_BUTTON = false;
 const BANNER_SECONDS = 1.8;
 const CARD_SECONDS = 3.4;
-const LOCK_SECONDS = 0.35; // short beat after an answer so a double pinch cannot skip a question
+const LOCK_SECONDS = 1.4; // your pick stays lit on the sheet this long after an answer...
+const LOCK_SKIP_AFTER = 0.25; // ...unless you tap an answer again (after this short beat, so a double pinch cannot skip it by accident)
 
 function makeCanvasTex(w: number, h: number): { cv: HTMLCanvasElement; g: CanvasRenderingContext2D; tex: CanvasTexture } {
   const cv = document.createElement('canvas');
@@ -255,7 +256,12 @@ export class ExamSystem extends createSystem({
     }
     TITLE.active = false; // pressing a menu button while the start screen is up just dismisses it
     TITLE.leaving = false;
-    if (this.lockLeft > 0 || this.btnLabel[slot] === null) return;
+    if (this.lockLeft > 0) {
+      // tapping while your pick is still showing moves on to the next question right away
+      if (LOCK_SECONDS - this.lockLeft >= LOCK_SKIP_AFTER) this.lockLeft = 0.0001;
+      return;
+    }
+    if (this.btnLabel[slot] === null) return;
     const phase = this.exam.phase;
     if (phase === 'ready' || phase === 'done') {
       const item = MENU[this.menuPage][slot];

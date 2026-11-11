@@ -98,7 +98,7 @@ export function planFor(mode: ModeId, opts: { challengeIdx?: number; weekDay?: n
         passMark: 0,
         maxWarnings: 99,
         // she cannot see you until the last lesson, and fruit does not run out
-        overrides: { visionRange: 0.05, fruitPerRound: 999, peekRefuseChance: 0, peekFindSeconds: 1.8, peekShareSeconds: 8, peekTaps: 99 },
+        overrides: { visionRange: 0.05, fruitPerRound: 999, peekRefuseChance: 0, peekFindSeconds: 1.8, peekShareSeconds: 1e6, peekTaps: 99 },
         introTitle: 'TRAINING DAY',
         introSub: 'learn every cheat. no timer, she cannot see you yet.',
       });

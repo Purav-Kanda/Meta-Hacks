@@ -21,8 +21,8 @@ const FONT = '"Comic Sans MS", "Chalkboard SE", "Trebuchet MS", sans-serif';
 const PX_PER_M = 1600;
 const PANEL_POS = { x: 0, y: 1.42, z: -0.9 };
 const PANEL_W = 0.9;
-const PANEL_H = 0.725; // one more row than before; the plate grows downward (see PLATE_DY)
-const PLATE_DY = -0.0525;
+const PANEL_H = 0.78; // one more row than before; the plate grows downward (see PLATE_DY)
+const PLATE_DY = -0.08;
 const CELL_W = 0.42;
 const CELL_H = 0.095;
 const COL_X = [-0.215, 0.215];
@@ -251,6 +251,10 @@ export class SettingsSystem extends createSystem({
     g.fillStyle = '#555';
     g.font = `34px ${FONT}`;
     g.fillText('pinch a button to change it  •  saved automatically', w / 2, 158);
+    // the room can occasionally shimmer on some headsets; a fresh page load clears it
+    g.fillStyle = '#b3541e';
+    g.font = `bold 38px ${FONT}`;
+    g.fillText('Screen flickering? Leave VR and reload the page in your browser.', w / 2, h - 72);
   }
 
   private paintCell(c: Cell): void {

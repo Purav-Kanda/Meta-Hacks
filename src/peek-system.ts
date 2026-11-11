@@ -38,7 +38,7 @@ const NOPE_POS: Array<[number, number, number]> = [
   [-1.5, 1.55, -0.45],
   [1.5, 1.55, -0.45],
 ];
-const EYE = new Vector3(0, 1.1, 0.2);
+const EYE = new Vector3(0, 1.3, 0.2);
 
 function canvasTex(w: number, h: number) {
   const cv = document.createElement('canvas');

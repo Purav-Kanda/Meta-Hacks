@@ -18,7 +18,7 @@ export interface Tuning {
   peekAccuracy: number; // chance a neighbor's answer is the right one
   peekRefuseChance: number; // chance a shoulder tap gets a head shake instead of the paper
   peekFindSeconds: number; // after a tap, how long they take to find the same question on their paper
-  peekShareSeconds: number; // a shared paper pulls itself back after this long
+  peekShareSeconds: number; // a shared paper pulls itself back after this long (1e6 = never, you hide it yourself)
   peekPanicSeconds: number; // ...or after the teacher has been charging this long
   peekSulkSeconds: number; // a kid who refused ignores you this long
   peekTaps: number; // how many shoulder taps you get per round (99 = no limit)
@@ -50,7 +50,7 @@ export const EASY: Tuning = {
   peekAccuracy: 0.7,
   peekRefuseChance: 0.2,
   peekFindSeconds: 2.8,
-  peekShareSeconds: 4,
+  peekShareSeconds: 1e6, // no timer: the paper stays out until YOU pinch the kid to hide it
   peekPanicSeconds: 1.5,
   peekSulkSeconds: 5,
   peekTaps: 4,
@@ -82,7 +82,7 @@ export const NOT_EASY: Tuning = {
   peekAccuracy: 0.55,
   peekRefuseChance: 0.35,
   peekFindSeconds: 3.8,
-  peekShareSeconds: 3,
+  peekShareSeconds: 1e6,
   peekPanicSeconds: 0.8,
   peekSulkSeconds: 7,
   peekTaps: 3,

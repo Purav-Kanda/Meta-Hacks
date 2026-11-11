@@ -1,4 +1,4 @@
-import { World } from '@iwsdk/core';
+import { type Material, type Mesh, type Texture, World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
 import { ClassroomSystem } from './classroom.js';
 import { ExamSystem } from './exam-system.js';
@@ -50,18 +50,20 @@ World.create(
   world.renderer.xr.setFramebufferScaleFactor(scale);
   world.renderer.xr.setFoveation(0); // foveated rendering shimmers at the edges; this scene is light enough without it
   // the room is 8 m across, so a tight depth range keeps close surfaces from fighting (z-fighting = random flicker)
-  world.camera.near = 0.12;
+  world.camera.near = 0.08;
   world.camera.far = 30;
   world.camera.updateProjectionMatrix();
+  window.setTimeout(() => prewarm(world), 1500);
+  world.renderer.xr.addEventListener('sessionstart', () => window.setTimeout(() => prewarm(world), 400));
   if (!qp.has('rawmouse')) guardMouse();
   if (qp.has('fps')) showFps(world.renderer.info, scale);
   if (qp.has('clicklog')) showClickLog(world);
 
-  // controller rays are created lazily by the SDK, so keep trying until both hands are styled
+  // controller rays are created lazily by the SDK (and can be replaced), so keep checking that both hands are styled
   const style = stylePointers(world, new URLSearchParams(window.location.search).has('glove'));
   const timer = window.setInterval(() => {
     if (style()) window.clearInterval(timer);
-  }, 500);
+  }, 1000);
 
   // Dev helpers, only active with ?debug in the URL (ignored in normal play).
   //   ?debug            exposes window.__game for console poking
@@ -89,6 +91,29 @@ World.create(
     }
   }
 });
+
+/**
+ * Compile every shader and upload every texture now, so nothing hitches (or flickers) the first time it shows up
+ * mid-game: the phone, the peek paper, the fruit and so on all start hidden. Optional, so errors are ignored.
+ */
+function prewarm(world: World): void {
+  try {
+    world.renderer.compile(world.scene, world.camera);
+    const seen = new Set<Texture>();
+    world.scene.traverse((o) => {
+      const mat = (o as Mesh).material as Material | Material[] | undefined;
+      for (const m of Array.isArray(mat) ? mat : mat ? [mat] : []) {
+        const tex = (m as Material & { map?: Texture | null }).map;
+        if (tex && !seen.has(tex)) {
+          seen.add(tex);
+          world.renderer.initTexture(tex);
+        }
+      }
+    });
+  } catch {
+    /* warming up is optional */
+  }
+}
 
 /** a tiny frame-rate readout (top-left of the page). Updates once a second, so it costs nothing per frame. */
 function showFps(info: { render: { calls: number; triangles: number } }, scale: number): void {

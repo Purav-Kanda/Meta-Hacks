@@ -104,19 +104,21 @@ function makeGloveTexture(pinch: boolean): CanvasTexture {
 }
 
 export function stylePointers(world: World, glove = false): () => boolean {
-  const done = new Set<string>();
+  // the ray/cursor objects we have styled per hand; if the SDK ever swaps one for a new object (tracking lost and regained) it is styled again
+  const styled = new Map<string, { ray: unknown; cursor: unknown }>();
   let dot: CanvasTexture | null = null;
   const gloveUp = glove ? makeGloveTexture(false) : null;
   const gloveDown = glove ? makeGloveTexture(true) : null;
-  // returns true once both hands are styled so the caller can stop retrying
+  // returns true only if the SDK internals changed (nothing more to do); otherwise false so the caller keeps checking
   return () => {
     try {
       const mp = (world.input as any).xr.multiPointers as Record<string, any>;
       for (const hand of ['left', 'right']) {
-        if (done.has(hand)) continue;
         const rayMesh = mp[hand]?.ray?.visual?.ray;
         const cursor = mp[hand]?.cursorVisual?.cursor;
         if (!rayMesh) continue;
+        const prev = styled.get(hand);
+        if (prev && prev.ray === rayMesh && prev.cursor === cursor) continue;
         const col: Color = rayMesh.material.uniforms.color.value;
         col.setHex(RAY_COLOR);
         // the SDK calls color.copy(white|blue) on select start/end; remap those to our colors
@@ -137,11 +139,11 @@ export function stylePointers(world: World, glove = false): () => boolean {
           cursor.material.needsUpdate = true;
           cursor.scale.setScalar(glove ? Number(new URLSearchParams(window.location.search).get('glove')) || 3.4 : 1.6);
         }
-        done.add(hand);
+        styled.set(hand, { ray: rayMesh, cursor });
       }
     } catch {
       return true; // internals changed: give up, default look is fine
     }
-    return done.size === 2;
+    return false; // keep checking: it is cheap, and a swapped-in default (white) ray would otherwise flash
   };
 }

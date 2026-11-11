@@ -11,13 +11,12 @@ import {
   MeshStandardMaterial,
   MovementMode,
   PlaneGeometry,
-  SphereGeometry,
   SRGBColorSpace,
   Vector3,
   createSystem,
 } from '@iwsdk/core';
 import { ClassroomSystem } from './classroom.js';
-import { CribModel, DESK_TOP_Y, overDesk } from './crib.js';
+import { CribModel } from './crib.js';
 import { CribGrab } from './exam-components.js';
 import { ExamSystem } from './exam-system.js';
 import { roundStats } from './progress.js';
@@ -27,12 +26,9 @@ import { TeacherSystem } from './teacher-system.js';
 import { ACTIVE_TUNING, onTuningChange } from './tuning.js';
 
 const FONT = '"Comic Sans MS", "Chalkboard SE", "Trebuchet MS", sans-serif';
-const TRAY_POS = new Vector3(0, 0.655, -0.1); // a tray hanging under the front of your desk
+const TRAY_POS = new Vector3(0, 0.655, -0.07); // a tray hanging under the front edge of your desk; the sheet in it sticks out past the edge
 const LOOK_COS = Math.cos((30 * Math.PI) / 180); // gaze within 30 degrees of the sheet counts as looking at it
-const TUCK_Y_LOW = 0.74; // below this over the desk you are reaching under it (the tray)
 const REGRAB_DELAY = 0.45; // seconds before the sheet can be grabbed again after letting go
-// held over the desk, the sheet's lowest edge sits this far under its centre (it is tilted toward your eyes)
-const HELD_CLEARANCE = 0.09;
 const TILT = -Math.atan2(1.3 - TRAY_POS.y, 0.2 - TRAY_POS.z); // face the sheet toward your eyes (seated eye ~ (0,1.3,0.2))
 
 /**
@@ -103,8 +99,9 @@ export class CribSystem extends createSystem({
     this.tex.anisotropy = 16;
     this.tex.colorSpace = SRGBColorSpace;
     this.sheet = new Mesh(new PlaneGeometry(0.26, 0.34), new MeshBasicMaterial({ map: this.tex, transparent: true, depthWrite: false, side: 2 }));
-    // an invisible bigger ball so it is easy to grab
-    this.sheet.add(new Mesh(new SphereGeometry(0.2, 8, 6), new MeshBasicMaterial({ visible: false })));
+    // an invisible slab just around the sheet (a bit bigger than it, so it is easy to grab but you cannot hit it
+    // through the desk: a ball here used to poke up through the desk top)
+    this.sheet.add(new Mesh(new BoxGeometry(0.28, 0.32, 0.07), new MeshBasicMaterial({ visible: false })));
     this.sheet.visible = false;
     this.sheetEntity = this.world.createTransformEntity(this.sheet, room);
     this.sheetEntity.addComponent(CribGrab, { id: 0 });
@@ -113,7 +110,7 @@ export class CribSystem extends createSystem({
     // grabbed / let go
     this.queries.held.subscribe('qualify', () => {
       if (this.model.grab()) {
-        this.sheet.rotation.set(TILT, 0, 0);
+        this.sheet.rotation.set(-Math.PI / 2, 0, 0);
         sfx.rustle();
       } else {
         // the model says no (it is falling or gone): do not let the hand drag it around against the model
@@ -181,8 +178,11 @@ export class CribSystem extends createSystem({
 
     if (m.state === 'held') {
       const p = this.sheet.position;
-      // over the desk it rides on top of the desk, it never sinks into the table (under the desk is the tuck zone)
-      if (overDesk(p.x, p.z) && p.y > TUCK_Y_LOW && p.y < DESK_TOP_Y + HELD_CLEARANCE) p.y = DESK_TOP_Y + HELD_CLEARANCE;
+      // never through the desk slab or what stands on it: around the desk it stays under it or over it (see crib.ts)
+      p.y = m.constrainHeld(p.x, p.y, p.z);
+      // flat while low (so it fits under the desk), tilting toward your eyes as you lift it up to read
+      const tilt = Math.min(1, Math.max(0, (p.y - 0.8) / 0.1));
+      this.sheet.rotation.set(-Math.PI / 2 + (TILT + Math.PI / 2) * tilt, 0, 0);
       m.setHeld(p.x, p.y, p.z);
     }
 

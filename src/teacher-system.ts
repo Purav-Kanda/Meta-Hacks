@@ -457,6 +457,7 @@ export class TeacherSystem extends createSystem({}) {
     SCARE.active = true;
     SCARE.t = 0;
     sfx.huh();
+    sfx.scare(SETTINGS.calm);
   }
 
   private runScare(dt: number, exam: ExamSystem['exam']): void {

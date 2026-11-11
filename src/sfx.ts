@@ -26,6 +26,10 @@ class Sfx {
         const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         if (!AC) return;
         this.ctx = new AC();
+        // when the browser wakes the audio again, restart the music clock so it doesn't try to catch up
+        this.ctx.onstatechange = () => {
+          if (this.ctx && this.ctx.state === 'running') this.musicNext = this.ctx.currentTime + 0.1;
+        };
         this.master = this.ctx.createGain();
         this.master.gain.value = VOLUME_GAIN[SETTINGS.volume];
         this.master.connect(this.ctx.destination);
@@ -34,10 +38,20 @@ class Sfx {
         const d = this.noiseBuf.getChannelData(0);
         for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
       }
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      if (this.ctx.state !== 'running') void this.ctx.resume().catch(() => undefined);
     } catch {
       /* no audio, the game still works */
     }
+  }
+
+  private lastNudge = 0;
+
+  /** call every frame: if the browser paused our audio (headset menu, tab switch, no gesture yet), try to wake it about once a second */
+  keepAlive(nowMs: number): void {
+    const c = this.ctx;
+    if (!c || c.state === 'running' || c.state === 'closed' || nowMs - this.lastNudge < 1000) return;
+    this.lastNudge = nowMs;
+    void c.resume().catch(() => undefined);
   }
 
   /** the volume setting changed */
@@ -85,6 +99,34 @@ class Sfx {
     s.connect(f).connect(g).connect(dest ?? this.master!);
     s.start(t);
     s.stop(t + dur + 0.02);
+  }
+
+  /** a held note with a slow fade in and out (the tone() envelope dies away at once); trem > 0 wobbles its volume at that many Hz */
+  private swell(type: OscillatorType, f0: number, f1: number, dur: number, vol: number, delay = 0, trem = 0): void {
+    if (!this.ready()) return;
+    const c = this.ctx!;
+    const t = c.currentTime + delay;
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.linearRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + Math.min(0.3, dur * 0.3));
+    g.gain.setValueAtTime(vol, t + dur * 0.7);
+    g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(this.master!);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+    if (trem > 0) {
+      const l = c.createOscillator();
+      const lg = c.createGain();
+      lg.gain.value = vol * 0.6;
+      l.frequency.value = trem;
+      l.connect(lg).connect(g.gain);
+      l.start(t);
+      l.stop(t + dur + 0.02);
+    }
   }
 
   // ---- background music: a friendly funky loop (C - Am - F - G), made of plucks, bass, kick and hats ----
@@ -184,6 +226,25 @@ class Sfx {
     if (!calm) {
       this.noise('bandpass', 1500, 600, 0.18, 0.35);
       this.tone('sine', 300, 700, 0.12, 0.3, 0.45); // little squeak after
+    }
+  }
+  /**
+   * the busted scare music: a low drone and a rising screech while she winds up, a huge hit when she lunges,
+   * then shrieking strings and stabs while she shakes in your face. Calm Motion gets a short, quiet version.
+   */
+  scare(calm = false): void {
+    const v = calm ? 0.35 : 1;
+    const total = calm ? 1.0 : 1.9;
+    this.swell('sawtooth', 55, 42, total, 0.2 * v, 0, 5); // dread drone
+    this.swell('sine', 110, 82, total, 0.15 * v, 0);
+    this.noise('highpass', 800, 5200, calm ? 0.2 : 0.35, 0.3 * v, 0); // wind-up riser
+    this.tone('sine', 95, 32, 0.6, 0.6 * v, calm ? 0.1 : 0.3); // the hit
+    this.noise('lowpass', 1600, 90, 0.45, 0.35 * v, calm ? 0.1 : 0.3);
+    // a clashing cluster of high strings (minor seconds) that slides up into the lunge and shivers
+    for (const f of [1318, 1397, 1865]) this.swell('sawtooth', f * 0.82, f, total - 0.25, 0.07 * v, 0.25, 13);
+    if (!calm) {
+      // short shrieking stabs while she shakes at you
+      for (let i = 0; i < 9; i++) this.tone('sawtooth', i % 2 ? 1568 : 1480, i % 2 ? 1500 : 1400, 0.08, 0.16, 0.65 + i * 0.09);
     }
   }
   huh(): void {
