@@ -19,7 +19,7 @@ import { guardMouse, mouseStats } from './mouse-guard.js';
 import { SettingsSystem } from './settings-system.js';
 import { SCARE } from './scare.js';
 import { loadSettings } from './settings.js';
-import { stylePointers } from './pointer-style.js';
+import { orderHands, stylePointers } from './pointer-style.js';
 import { TeacherSystem } from './teacher-system.js';
 
 loadSettings();
@@ -50,8 +50,8 @@ World.create(
   world.renderer.xr.setFramebufferScaleFactor(scale);
   world.renderer.xr.setFoveation(0); // foveated rendering shimmers at the edges; this scene is light enough without it
   // the room is 8 m across, so a tight depth range keeps close surfaces from fighting (z-fighting = random flicker)
-  world.camera.near = 0.08;
-  world.camera.far = 30;
+  world.camera.near = 0.1;
+  world.camera.far = 20;
   world.camera.updateProjectionMatrix();
   window.setTimeout(() => prewarm(world), 1500);
   world.renderer.xr.addEventListener('sessionstart', () => window.setTimeout(() => prewarm(world), 400));
@@ -64,6 +64,8 @@ World.create(
   const timer = window.setInterval(() => {
     if (style()) window.clearInterval(timer);
   }, 1000);
+  // the SDK makes the hand meshes lazily too (and again when tracking returns), so keep their draw order fixed
+  window.setInterval(() => orderHands(world), 500);
 
   // Dev helpers, only active with ?debug in the URL (ignored in normal play).
   //   ?debug            exposes window.__game for console poking

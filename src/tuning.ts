@@ -62,8 +62,8 @@ export const EASY: Tuning = {
   fruitPerRound: 4,
   distractSeconds: 4.5,
   aimAssist: 0.6,
-  cribCount: 6,
-  cribReadSeconds: 0.3,
+  cribCount: 4,
+  cribReadSeconds: 0.8,
   teacherCount: 1,
 };
 
@@ -94,8 +94,8 @@ export const NOT_EASY: Tuning = {
   fruitPerRound: 3,
   distractSeconds: 3.5,
   aimAssist: 0.35,
-  cribCount: 4,
-  cribReadSeconds: 0.45,
+  cribCount: 3,
+  cribReadSeconds: 1.1,
   teacherCount: 2,
 };
 

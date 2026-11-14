@@ -213,6 +213,9 @@ function makeChair(): Group {
 }
 
 
+/** how far (m) behind the desk you start; the player rig is pushed back this much */
+export const SEAT_BACK = 0.22;
+
 export class ClassroomSystem extends createSystem({}) {
   roomEntity!: Entity;
   private roomRoot!: Group;
@@ -425,9 +428,12 @@ export class ClassroomSystem extends createSystem({}) {
       this.waitTime = 0;
       this.world.player.position.y = 0;
       this.roomRoot.position.y = 0;
+      this.world.player.position.z = 0;
       return;
     }
     const rig = this.world.player;
+    // you start a little way back from the desk, so the whole table is in reach without stretching or bending your arms
+    rig.position.z = SEAT_BACK;
     // where the head is without our own lift (the rig is only ever lifted by this code)
     this.world.camera.getWorldPosition(this.headPos);
     const rawY = this.headPos.y - rig.position.y;

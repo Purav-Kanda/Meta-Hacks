@@ -1,4 +1,4 @@
-import { CanvasTexture, type Color, SRGBColorSpace, type World } from '@iwsdk/core';
+import { CanvasTexture, type Color, type Material, type Object3D, SRGBColorSpace, type World } from '@iwsdk/core';
 
 /**
  * Makes the controller ray and its hit-dot easy to see against the classroom:
@@ -146,4 +146,22 @@ export function stylePointers(world: World, glove = false): () => boolean {
     }
     return false; // keep checking: it is cheap, and a swapped-in default (white) ray would otherwise flash
   };
+}
+
+/**
+ * The SDK draws each tracked hand as an invisible "hole" that writes depth (so the hand hides its own back faces) plus a
+ * white outline (renderOrder 999). The hole has the default render order, so it is sorted against our see-through decals
+ * (answer buttons, the crib sheet, the phone screen...) by distance, and that order flips from frame to frame: when it is
+ * drawn first the decals behind your hand vanish (the hand "goes opaque / white"), and a frame later they are back. This
+ * draws the hole after every decal (they use render orders below 10) and just before its outline, so it is stable.
+ * Quietly does nothing if the SDK's hand material ever changes.
+ */
+export function orderHands(world: World): void {
+  const fix = (o: Object3D): void => {
+    const mat = (o as { material?: Material | Material[] }).material;
+    if (!mat || Array.isArray(mat) || o.renderOrder >= 998) return;
+    const sm = mat as Material & { isShaderMaterial?: boolean; fragmentShader?: string };
+    if (sm.isShaderMaterial && sm.transparent && sm.depthWrite && sm.fragmentShader?.includes('vec4(0,0,0,0)')) o.renderOrder = 998;
+  };
+  world.scene.traverse(fix);
 }

@@ -17,7 +17,7 @@ export interface Lesson {
 }
 
 export const LESSONS: readonly Lesson[] = [
-  { id: 'answer', title: 'ANSWER', text: 'Hold up your hand and point at A, B or C. Pinch your thumb and index finger together to press.', praise: 'Nice! That is the boring way.', done: null, arrow: [] },
+  { id: 'answer', title: 'ANSWER', text: 'Hold up your hand and point at A, B or C. Pinch your thumb and index finger together to press. Tip: shift or lean back a bit if you want to sit further from the desk.', praise: 'Nice! That is the boring way.', done: null, arrow: [] },
   {
     id: 'peek',
     title: 'PEEK',
@@ -37,10 +37,10 @@ export const LESSONS: readonly Lesson[] = [
   {
     id: 'crib',
     title: 'CRIB SHEET',
-    text: 'Point at the sheet in the tray under your desk, pinch and hold to grab it. Lift it to read, then tuck it back.',
-    praise: 'Notes read. Dropped or held up, she can see it!',
+    text: 'Bend your neck and look straight down at the sheet in the tray under your desk. Keep looking to read it. Quick peeks only: if she sees you looking, she takes it!',
+    praise: 'Notes read! Look away fast, she spots you looking down.',
     done: (s) => s.cribReads >= 1,
-    arrow: [[0, 0.86, -0.07]],
+    arrow: [[0, 0.9, -0.07]],
   },
   {
     id: 'phone',
@@ -50,7 +50,7 @@ export const LESSONS: readonly Lesson[] = [
     done: (s) => s.phoneAsks >= 1,
     arrow: [[-0.42, 1.0, -0.28]],
   },
-  { id: 'free', title: 'FREE PLAY', text: 'Last one! Use any cheat. She can see you now, so hide the evidence (pinch it away) when she charges.', praise: '', done: null, arrow: [] },
+  { id: 'free', title: 'FREE PLAY', text: 'Last one! Use any cheat. She can see you now! When she charges, look up, hide the phone (pinch HIDE) and hide the peek.', praise: '', done: null, arrow: [] },
 ];
 
 export const TUTORIAL = {

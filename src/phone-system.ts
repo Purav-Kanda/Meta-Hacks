@@ -123,6 +123,10 @@ export class PhoneSystem extends createSystem({
     this.deskPhone.rotation.x = -Math.PI / 2;
     this.deskPhone.rotation.z = 0.35;
     this.deskPhone.position.set(-0.42, 0.784, -0.28);
+    // a bigger invisible hit box around the flat phone: a thin little plane is hard to hit with one hand's ray at a shallow angle
+    const hit = new Mesh(new BoxGeometry(0.24, 0.32, 0.1), new MeshBasicMaterial({ visible: false }));
+    hit.position.z = 0.04;
+    this.deskPhone.add(hit);
     const de = this.world.createTransformEntity(this.deskPhone, classroom.seatEntity);
     de.addComponent(PhoneButton, { kind: 0 });
     de.addComponent(RayInteractable);

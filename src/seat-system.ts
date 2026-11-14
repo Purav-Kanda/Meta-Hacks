@@ -1,5 +1,6 @@
 import {
   CanvasTexture,
+  LinearFilter,
   Mesh,
   MeshBasicMaterial,
   PlaneGeometry,
@@ -37,6 +38,8 @@ export class SeatSystem extends createSystem({
   private card!: Mesh;
   private g!: CanvasRenderingContext2D;
   private tex!: CanvasTexture;
+  /** one ready-made, already uploaded picture per spinning frame, so the ticks never re-upload a texture */
+  private spinTex: CanvasTexture[] = [];
   private tag!: Mesh;
   private tagG!: CanvasRenderingContext2D;
   private tagTex!: CanvasTexture;
@@ -73,6 +76,29 @@ export class SeatSystem extends createSystem({
     this.tex = new CanvasTexture(cv);
     this.tex.anisotropy = 16;
     this.tex.colorSpace = SRGBColorSpace;
+    // draw every spinning frame once up front (painting + uploading a big texture on each tick made it hitch)
+    const mainG = this.g;
+    const mainTex = this.tex;
+    for (const seat of SEATS) {
+      const c2 = document.createElement('canvas');
+      c2.width = cv.width;
+      c2.height = cv.height;
+      this.g = c2.getContext('2d')!;
+      const t2 = new CanvasTexture(c2);
+      t2.colorSpace = SRGBColorSpace;
+      t2.generateMipmaps = false;
+      t2.minFilter = LinearFilter;
+      this.tex = t2;
+      this.paintCard(seat.id, false);
+      this.spinTex.push(t2);
+      try {
+        this.world.renderer.initTexture(t2);
+      } catch {
+        /* uploaded on first use instead */
+      }
+    }
+    this.g = mainG;
+    this.tex = mainTex;
     this.card = new Mesh(new PlaneGeometry(0.9, 0.585), new MeshBasicMaterial({ map: this.tex, transparent: true, depthWrite: false, depthTest: false }));
     this.card.position.copy(CARD_POS);
     this.card.rotation.y = Math.atan2(EYE.x - CARD_POS.x, EYE.z - CARD_POS.z);
@@ -132,6 +158,7 @@ export class SeatSystem extends createSystem({
         this.t = 0;
         this.lastFlick = -1;
         this.landed = false;
+        (this.card.material as MeshBasicMaterial).map = this.spinTex[0];
         this.card.visible = true;
       }
     }
@@ -164,11 +191,12 @@ export class SeatSystem extends createSystem({
       const idx = Math.floor(this.t / rate);
       if (idx !== this.lastFlick) {
         this.lastFlick = idx;
-        this.paintCard(SEATS[Math.floor(Math.random() * SEATS.length)].id, false);
+        (this.card.material as MeshBasicMaterial).map = this.spinTex[Math.floor(Math.random() * this.spinTex.length)];
         sfx.click();
       }
     } else if (!this.landed) {
       this.landed = true;
+      (this.card.material as MeshBasicMaterial).map = this.tex;
       this.paintCard(SEAT.current.id, true);
       if (this.pendingRoom) this.applyRoom();
       sfx.ding();

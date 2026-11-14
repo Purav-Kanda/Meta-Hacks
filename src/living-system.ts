@@ -46,9 +46,9 @@ function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D, w: 
 function wallBoard(tex: CanvasTexture, w: number, h: number, x: number, y: number, z: number, faceYaw: number): Group {
   const g = new Group();
   const frame = new Mesh(new BoxGeometry(w + 0.06, h + 0.06, 0.03), std(0x6b4423));
-  frame.position.z = -0.026; // front of the frame 1 cm behind the picture (1 mm made them shimmer from across the room)
+  frame.position.z = -0.036; // front of the frame 2 cm behind the picture (1 mm made them shimmer from across the room)
   g.add(frame);
-  const face = new Mesh(new PlaneGeometry(w, h), new MeshBasicMaterial({ map: tex }));
+  const face = new Mesh(new PlaneGeometry(w, h), new MeshBasicMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
   g.add(face);
   g.position.set(x, y, z);
   g.rotation.y = faceYaw;
@@ -275,17 +275,18 @@ export class LivingSystem extends createSystem({
         const win = new Group();
         const frame = new Mesh(new BoxGeometry(1.5, 1.2, 0.08), std(0xf4efe4));
         win.add(frame);
-        const skyP = new Mesh(new PlaneGeometry(1.36, 1.06), new MeshBasicMaterial({ map: sky }));
-        skyP.position.z = 0.045;
+        const skyP = new Mesh(new PlaneGeometry(1.36, 1.06), new MeshBasicMaterial({ map: sky, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+        skyP.position.z = 0.07; // well in front of the frame (3 cm), so nothing fights at a distance
         win.add(skyP);
-        const cloudP = new Mesh(new PlaneGeometry(1.36, 1.06), new MeshBasicMaterial({ map: cloud, transparent: true }));
-        cloudP.position.z = 0.05;
+        const cloudP = new Mesh(new PlaneGeometry(1.36, 1.06), new MeshBasicMaterial({ map: cloud, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+        cloudP.position.z = 0.085;
+        cloudP.renderOrder = 1;
         win.add(cloudP);
         const bar1 = new Mesh(new BoxGeometry(1.4, 0.04, 0.03), std(0xf4efe4));
-        bar1.position.z = 0.06;
+        bar1.position.z = 0.11;
         win.add(bar1);
         const bar2 = new Mesh(new BoxGeometry(0.04, 1.1, 0.03), std(0xf4efe4));
-        bar2.position.z = 0.06;
+        bar2.position.z = 0.11;
         win.add(bar2);
         win.position.set(sx * 3.96, 1.75, z);
         win.rotation.y = -sx * (Math.PI / 2);
@@ -296,10 +297,10 @@ export class LivingSystem extends createSystem({
 
   private buildPosters(room: Group): void {
     const spots: Array<[number, number, number, number]> = [
-      [-3.97, 1.7, -2.3, Math.PI / 2], // left wall, between the windows, faces +x
-      [3.97, 1.7, -2.3, -Math.PI / 2],
-      [3.3, 2.0, -5.95, 0], // front wall, right of the board
-      [-3.97, 1.7, -5.0, Math.PI / 2],
+      [-3.95, 1.7, -2.3, Math.PI / 2], // left wall, between the windows, faces +x
+      [3.95, 1.7, -2.3, -Math.PI / 2],
+      [3.3, 2.0, -5.93, 0], // front wall, right of the board
+      [-3.95, 1.7, -5.0, Math.PI / 2],
     ];
     spots.forEach(([x, y, z, yaw], i) => {
       room.add(wallBoard(posterTex(POSTERS[i % POSTERS.length]), 0.55, 0.69, x, y, z, yaw));
