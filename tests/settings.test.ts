@@ -1,0 +1,10 @@
+import { SETTINGS, DEFAULTS, loadSettings, changeSettings, assistFactor, timeFactor, popupScale, onSettingsChange } from '../src/settings.ts';
+const eq = (a: unknown, b: unknown, m: string) => { if (JSON.stringify(a) !== JSON.stringify(b)) { console.log('FAIL', m, a, b); process.exit(1); } };
+loadSettings(null); eq({ ...SETTINGS }, { ...DEFAULTS }, 'defaults');
+loadSettings('not json'); eq({ ...SETTINGS }, { ...DEFAULTS }, 'bad json');
+loadSettings(JSON.stringify({ volume: 99, music: 'yes', assist: -4, contrast: true, relaxed: true }));
+eq(SETTINGS.volume, 3, 'clamp hi'); eq(SETTINGS.music, true, 'bad bool -> default'); eq(SETTINGS.assist, 0, 'clamp lo'); eq(SETTINGS.contrast, true, 'bool kept');
+eq(timeFactor(), 1.5, 'relaxed time'); eq(assistFactor(), 0, 'assist off'); eq(popupScale(), 1, 'popup normal');
+let n = 0; onSettingsChange(() => n++); changeSettings({ popupLarge: true, assist: 2 });
+eq(n, 1, 'listener'); eq(popupScale(), 1.3, 'popup large'); eq(assistFactor(), 1.6, 'assist strong');
+console.log('settings ok');

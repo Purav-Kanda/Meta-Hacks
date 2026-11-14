@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { CribModel, LINGER } from '../src/crib.ts';
+const m = new CribModel({ count: 2, readSeconds: 0.8 }, () => 0.5);
+m.deal(['a', 'b', 'c', undefined]);
+assert.equal(m.notes.length, 2);
+assert.equal(m.evidence, false);
+assert.equal(m.update(0.5, true), false); assert.equal(m.reading, false); assert.equal(m.evidence, true);
+assert.equal(m.update(0.4, true), true); assert.equal(m.reading, true); assert.equal(m.reads, 1);
+m.update(0.1, true); assert.equal(m.reads, 1);
+m.update(0.1, false); assert.equal(m.reading, false); assert.equal(m.evidence, true);
+m.update(LINGER + 0.1, false); assert.equal(m.evidence, false);
+assert.equal(m.confiscate(), false);
+m.update(0.1, true); assert.equal(m.confiscate(), true); assert.equal(m.state, 'gone'); assert.equal(m.evidence, false);
+m.update(1, true); assert.equal(m.reading, false);
+m.deal(['a','b']); assert.equal(m.state, 'tray');
+console.log('crib ok');

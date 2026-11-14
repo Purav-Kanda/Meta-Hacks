@@ -1,0 +1,21 @@
+import { gradeFor, Progress, emptyStats, STICKERS, type Store } from '../src/progress.ts';
+let fail = 0; const ok = (c: boolean, m: string) => { if (!c) { fail++; console.log('FAIL', m); } };
+ok(gradeFor(10,10,false)==='A+' && gradeFor(9,10,false)==='A' && gradeFor(8,10,false)==='B' && gradeFor(7,10,false)==='C' && gradeFor(6,10,false)==='D' && gradeFor(5,10,false)==='F', 'grades');
+ok(gradeFor(10,10,true)==='F', 'caught is F');
+let saved: string|null = null; const mem: Store = { get: () => saved, set: v => { saved = v; } };
+const p = new Progress(mem);
+const s = emptyStats('easy'); Object.assign(s, { score: 8, passed: true, peeks: 2, phoneAsks: 1, fruitThrown: 3 });
+let r = p.record(s);
+ok(r.grade==='B' && r.newBest, 'first record is best');
+ok(r.newStickers.some(x=>x.id==='triple') && r.newStickers.some(x=>x.id==='foodfight') && r.newStickers.some(x=>x.id==='smooth'), 'stickers: '+r.newStickers.map(x=>x.id));
+ok(!r.newStickers.some(x=>x.id==='honest'), 'cheater is not honest');
+r = new Progress(mem).record(s); ok(r.newStickers.length===0 && !r.newBest, 'persisted, no duplicates, tie is not a new best');
+const s2 = emptyStats('easy'); Object.assign(s2, { score: 10, passed: true });
+r = p.record(s2); ok(r.grade==='A+' && r.newBest && r.newStickers.some(x=>x.id==='honest') && r.newStickers.some(x=>x.id==='perfect'), 'perfect honest run');
+const s3 = emptyStats('notEasy'); Object.assign(s3, { score: 3, caught: true, warnings: 3 });
+r = p.record(s3); ok(r.grade==='F' && !r.newBest && !p.data.best.notEasy, 'caught run never sets a best');
+// broken storage
+const bad: Store = { get: () => '{not json', set: () => { throw new Error('x'); } };
+let threw = false; try { new Progress({ get: bad.get, set: () => {} }).record(s); } catch { threw = true; } ok(!threw, 'corrupt save survives');
+ok(new Set(STICKERS.map(x=>x.id)).size === STICKERS.length, 'unique ids');
+console.log(fail ? 'FAILED' : 'ALL OK');

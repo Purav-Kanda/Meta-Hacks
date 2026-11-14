@@ -1,0 +1,17 @@
+import { planFor, endlessStage, ROUND, CHALLENGES, WEEK, MENU } from '../src/modes.ts';
+import { applyTuning, ACTIVE_TUNING, EASY, NOT_EASY, setDifficulty } from '../src/tuning.ts';
+import assert from 'node:assert/strict';
+const f = planFor('challenge',{challengeIdx:0}); assert.equal(f.overrides.fruitPerRound, undefined); assert.deepEqual(f.disabled.sort(),['crib','peek','phone']);
+const ph = planFor('challenge',{challengeIdx:1}); assert.equal(ph.overrides.fruitPerRound,0);
+ROUND.set(ph); assert.equal(ROUND.allows('fruit'),false); assert.equal(ROUND.allows('phone'),true);
+const w = planFor('week',{weekDay:1}); assert.equal(w.day,2); assert.equal(w.disabled[0],'phone'); assert.equal(w.overrides.fruitPerRound,undefined);
+assert.equal(planFor('week',{weekDay:99}).day,5);
+assert.equal(planFor('week',{weekDay:2}).overrides.teacherCount,2);
+assert.equal(WEEK.length,5); assert.equal(CHALLENGES.length,5);
+assert.equal(endlessStage(0).level,0); assert.equal(endlessStage(12).base,'notEasy'); assert.ok(endlessStage(400).intensity<=1.6);
+applyTuning('easy',1.25); assert.ok(Math.abs(ACTIVE_TUNING.teacherSpeed-EASY.teacherSpeed*1.25)<1e-9);
+applyTuning('easy',1,{teacherCount:2}); assert.equal(ACTIVE_TUNING.teacherCount,2);
+setDifficulty('easy'); assert.equal(ACTIVE_TUNING.teacherCount,1); assert.equal(ACTIVE_TUNING.teacherSpeed,EASY.teacherSpeed);
+setDifficulty('notEasy'); assert.equal(ACTIVE_TUNING.teacherCount,2);
+assert.equal(MENU.length,4);
+console.log('modes ok');
