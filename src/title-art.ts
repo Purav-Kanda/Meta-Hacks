@@ -548,15 +548,16 @@ export function paintFrame(g: Ctx): void {
   // logo
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.font = `bold 104px ${FONT}`;
-  g.lineWidth = 18;
+  g.font = `bold 92px ${FONT}`;
+  g.lineWidth = 16;
   g.strokeStyle = '#ffffff';
-  g.strokeText('POP QUIZ PANIC', w / 2, 82);
+  g.strokeText('POP QUIZ PANIC', w / 2, 68);
   g.fillStyle = '#d6335a';
-  g.fillText('POP QUIZ PANIC', w / 2, 82);
-  g.font = `bold 34px ${FONT}`;
+  g.fillText('POP QUIZ PANIC', w / 2, 68);
+  // sits fully above the window (which starts at y 150); it used to be cut off by it
+  g.font = `bold 28px ${FONT}`;
   g.fillStyle = '#6a4cff';
-  g.fillText('a hands-on cheating simulator  \u2022  play seated', w / 2, 136);
+  g.fillText('a hands-on cheating simulator  \u2022  play seated', w / 2, 126);
   // window hole with a border
   g.save();
   g.globalCompositeOperation = 'destination-out';

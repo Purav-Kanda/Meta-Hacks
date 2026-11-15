@@ -17,7 +17,7 @@ export interface Lesson {
 }
 
 export const LESSONS: readonly Lesson[] = [
-  { id: 'answer', title: 'ANSWER', text: 'Hold up your hand and point at A, B or C. Pinch your thumb and index finger together to press. Tip: shift or lean back a bit if you want to sit further from the desk.', praise: 'Nice! That is the boring way.', done: null, arrow: [] },
+  { id: 'answer', title: 'ANSWER', text: 'Point at A, B or C, then pinch your thumb and index finger to press. Tip: lean back a bit if the desk feels too close.', praise: 'Nice! That is the boring way.', done: null, arrow: [] },
   {
     id: 'peek',
     title: 'PEEK',
@@ -37,7 +37,7 @@ export const LESSONS: readonly Lesson[] = [
   {
     id: 'crib',
     title: 'CRIB SHEET',
-    text: 'Bend your neck and look straight down at the sheet in the tray under your desk. Keep looking to read it. Quick peeks only: if she sees you looking, she takes it!',
+    text: 'Bend your neck and look straight down at the sheet under your desk. Keep looking to read it. Be quick: if she sees you, she takes it!',
     praise: 'Notes read! Look away fast, she spots you looking down.',
     done: (s) => s.cribReads >= 1,
     arrow: [[0, 0.9, -0.07]],

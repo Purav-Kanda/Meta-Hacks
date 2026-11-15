@@ -15,6 +15,7 @@ import {
   Entity,
   Group,
   Hovered,
+  LinearFilter,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -33,6 +34,8 @@ import { QUESTIONS } from './questions.js';
 const SHEET_W = 0.58;
 const SHEET_H = 0.48;
 const PX_PER_M = 1600;
+const TIMER_PX_W = 336;
+const TIMER_PX_H = 96;
 const BTN_W = 0.5;
 const BTN_H = 0.07;
 const BTN_Y = [-0.045, -0.125, -0.205];
@@ -91,6 +94,10 @@ export class ExamSystem extends createSystem({
 
   private sheetCtx!: CanvasRenderingContext2D;
   private sheetTex!: CanvasTexture;
+  /** the countdown is its own little texture over the sheet's header, so each second repaints 0.03 megapixels, not the whole desk */
+  private timerCtx!: CanvasRenderingContext2D;
+  private timerTex!: CanvasTexture;
+  private timerMesh!: Mesh;
   private btnCtx: CanvasRenderingContext2D[] = [];
   private btnTex: CanvasTexture[] = [];
   private btnMesh: Mesh[] = [];
@@ -142,6 +149,20 @@ export class ExamSystem extends createSystem({
       new MeshStandardMaterial({ map: s.tex, roughness: 0.9 }),
     );
     sheet.add(paper);
+
+    // the TIME readout: top right of the header strip (canvas pixels w-336..w, 0..96)
+    const tm = makeCanvasTex(TIMER_PX_W, TIMER_PX_H);
+    tm.tex.generateMipmaps = false;
+    tm.tex.minFilter = LinearFilter;
+    this.timerCtx = tm.g;
+    this.timerTex = tm.tex;
+    this.timerMesh = new Mesh(
+      new PlaneGeometry(TIMER_PX_W / PX_PER_M, TIMER_PX_H / PX_PER_M),
+      new MeshStandardMaterial({ map: tm.tex, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+    );
+    this.timerMesh.position.set(SHEET_W / 2 - TIMER_PX_W / PX_PER_M / 2, SHEET_H / 2 - TIMER_PX_H / PX_PER_M / 2, 0.002);
+    this.timerMesh.visible = false;
+    sheet.add(this.timerMesh);
 
     // wooden backing board so the sheet reads as a little easel, not a floating card
     const backing = new Mesh(
@@ -492,22 +513,43 @@ export class ExamSystem extends createSystem({
   private refresh(force: boolean): void {
     const ex = this.exam;
     const sec = ex.phase === 'playing' ? Math.ceil(ex.secondsLeft) : -1;
+    // the countdown ticks every second; that only repaints its own small texture
+    if (sec !== this.shownSecond) {
+      this.shownSecond = sec;
+      this.paintTimer();
+    }
     const changed =
       force ||
       ex.phase !== this.shownPhase ||
       ex.cursor !== this.shownCursor ||
-      sec !== this.shownSecond ||
       ex.warnings !== this.shownPaintedWarnings;
     if (!changed) return;
     // while the post-answer lock is running keep the old question on screen
     if (this.lockLeft > 0 && !force) return;
     this.shownPhase = ex.phase;
     this.shownCursor = ex.cursor;
-    this.shownSecond = sec;
     this.shownPaintedWarnings = ex.warnings;
     this.paintSheet();
+    this.paintTimer();
     this.paintButtons();
     this.updatePanel();
+  }
+
+  /** the TIME readout in the header (timed rounds only; training and endless show something else there) */
+  private paintTimer(): void {
+    const ex = this.exam;
+    const on = ex.phase === 'playing' && ROUND.mode !== 'tutorial' && !this.plan.endless;
+    this.timerMesh.visible = on;
+    if (!on) return;
+    const g = this.timerCtx;
+    g.fillStyle = '#d6335a';
+    g.fillRect(0, 0, TIMER_PX_W, TIMER_PX_H);
+    g.textBaseline = 'alphabetic';
+    g.textAlign = 'right';
+    g.font = `bold 54px ${FONT}`;
+    g.fillStyle = ex.secondsLeft < 30 ? '#ffe066' : '#fff';
+    g.fillText(`TIME ${mmss(ex.secondsLeft)}`, TIMER_PX_W - 36, 68);
+    this.timerTex.needsUpdate = true;
   }
 
   private paintSheet(): void {
@@ -605,10 +647,8 @@ export class ExamSystem extends createSystem({
     } else if (this.plan.endless) {
       g.fillStyle = ex.wrong >= (ex.rules.maxWrong ?? 3) - 1 ? '#ffe066' : '#fff';
       g.fillText(`MISS ${ex.wrong}/${ex.rules.maxWrong ?? 3}`, w - 36, 68);
-    } else {
-      g.fillStyle = ex.secondsLeft < 30 ? '#ffe066' : '#fff';
-      g.fillText(`TIME ${mmss(ex.secondsLeft)}`, w - 36, 68);
     }
+    // (timed rounds: the TIME readout is drawn by paintTimer on its own texture)
 
     g.fillStyle = '#1b1b1b';
     g.font = `bold 54px ${FONT}`;

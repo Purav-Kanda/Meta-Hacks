@@ -97,6 +97,7 @@ export class PhoneSystem extends createSystem({
   private wasPlaying = false;
   private lastCursor = -1;
   private shownScreen = '';
+  private shownTick = -99;
   private shownAsk = '';
 
   init(): void {
@@ -263,9 +264,10 @@ export class PhoneSystem extends createSystem({
     const tick = mode === 'buffer' ? 0 : mode === 'cool' ? Math.ceil(m.cooldownLeft) : m.answer;
     this.spinner.visible = mode === 'buffer';
     if (mode === 'buffer') this.spinner.rotation.z = -this.clock * 8;
-    const key = `${mode}|${tick}`;
-    if (key !== this.shownScreen) {
-      this.shownScreen = key;
+    // compared as two plain values: building a string key here made garbage every frame
+    if (mode !== this.shownScreen || tick !== this.shownTick) {
+      this.shownScreen = mode;
+      this.shownTick = tick;
       this.paintScreen(mode);
     }
     const askKey = m.canAsk ? 'on' : 'off';

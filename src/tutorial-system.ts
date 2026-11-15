@@ -22,7 +22,7 @@ export class TutorialSystem extends createSystem({}) {
   private arrows: Mesh[] = [];
   private exam!: ExamSystem;
   private clock = 0;
-  private shown = '';
+  private shown = -1; // a number, not a string: no per-frame garbage
   private lastNudge = 0;
   private shake = 0;
   private freed = false;
@@ -62,7 +62,7 @@ export class TutorialSystem extends createSystem({}) {
       this.card.visible = false;
       for (const a of this.arrows) a.visible = false;
       this.freed = false;
-      this.shown = '';
+      this.shown = -1;
       return;
     }
     this.clock += Math.min(delta, 0.1);
@@ -79,9 +79,9 @@ export class TutorialSystem extends createSystem({}) {
     if (TUTORIAL.nudgeSeq !== this.lastNudge) {
       this.lastNudge = TUTORIAL.nudgeSeq;
       this.shake = 1;
-      this.shown = '';
+      this.shown = -1;
     }
-    const key = `${cur}|${lessonDone}|${this.shake > 0}`;
+    const key = cur * 4 + (lessonDone ? 2 : 0) + (this.shake > 0 ? 1 : 0);
     if (key !== this.shown) {
       this.shown = key;
       this.paint(cur, lesson.title, lesson.text, lesson.praise, lessonDone);
@@ -91,7 +91,7 @@ export class TutorialSystem extends createSystem({}) {
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - delta * 2);
       this.card.position.x = CARD_POS.x + Math.sin(this.clock * 50) * 0.012 * this.shake;
-      if (this.shake === 0) this.shown = '';
+      if (this.shake === 0) this.shown = -1;
     } else {
       this.card.position.x = CARD_POS.x;
     }
@@ -131,21 +131,28 @@ export class TutorialSystem extends createSystem({}) {
     this.tex.needsUpdate = true;
   }
 
+  /** word-wrap `text`; if it needs more than `maxLines` at full size the font shrinks until it all fits (nothing is ever cut off) */
   private wrap(text: string, x: number, y: number, maxW: number, lh: number, maxLines: number): void {
     const g = this.g;
-    g.font = `bold 48px ${FONT}`;
     const words = text.split(' ');
-    let line = '';
-    let n = 0;
-    for (const word of words) {
-      const t = line ? `${line} ${word}` : word;
-      if (g.measureText(t).width > maxW && line) {
-        g.fillText(line, x, y + n * lh);
-        n += 1;
-        line = word;
-        if (n >= maxLines) return;
-      } else line = t;
+    const room = lh * maxLines;
+    for (let fs = 48; fs >= 30; fs -= 3) {
+      g.font = `bold ${fs}px ${FONT}`;
+      const lines: string[] = [];
+      let line = '';
+      for (const word of words) {
+        const t = line ? `${line} ${word}` : word;
+        if (g.measureText(t).width > maxW && line) {
+          lines.push(line);
+          line = word;
+        } else line = t;
+      }
+      if (line) lines.push(line);
+      const step = (lh * fs) / 48;
+      if (lines.length * step <= room + 1 || fs === 30) {
+        for (let i = 0; i < lines.length; i++) g.fillText(lines[i], x, y - (lh - step) / 2 + i * step);
+        return;
+      }
     }
-    if (line) g.fillText(line, x, y + n * lh);
   }
 }

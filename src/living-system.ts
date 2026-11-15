@@ -1,6 +1,7 @@
 import {
   BoxGeometry,
   CanvasTexture,
+  LinearFilter,
   CircleGeometry,
   CylinderGeometry,
   Entity,
@@ -197,6 +198,9 @@ export class LivingSystem extends createSystem({
 
   private buildClock(room: Group): void {
     this.clockTex = canvasTex(256, 256, () => {});
+    // repainted every second: no mipmap chain to rebuild each time
+    this.clockTex.generateMipmaps = false;
+    this.clockTex.minFilter = LinearFilter;
     this.clockG = (this.clockTex.image as HTMLCanvasElement).getContext('2d')!;
     const rim = new Mesh(new CylinderGeometry(0.36, 0.36, 0.04, 28), std(0x2b2b3a));
     rim.rotation.x = Math.PI / 2;
