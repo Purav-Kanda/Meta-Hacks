@@ -23,6 +23,7 @@ import {
   Pressed,
   RayInteractable,
   SRGBColorSpace,
+  VisibilityState,
   createSystem,
 } from '@iwsdk/core';
 import { ClassroomSystem } from './classroom.js';
@@ -307,6 +308,10 @@ export class ExamSystem extends createSystem({
   }
 
   update(delta: number): void {
+    // headset menu open or headset off: freeze the exam so the clock and teacher wait for you; and never let one long frame eat the timer
+    const vis = this.world.visibilityState.peek();
+    if (vis !== VisibilityState.Visible && vis !== VisibilityState.NonImmersive) return;
+    delta = Math.min(delta, 0.1);
     if (this.lockLeft > 0) {
       this.lockLeft -= delta;
       if (this.lockLeft <= 0) {

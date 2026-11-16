@@ -16,6 +16,7 @@ import {
   SRGBColorSpace,
   TorusGeometry,
   Vector3,
+  VisibilityState,
   createSystem,
 } from '@iwsdk/core';
 import { ClassroomSystem } from './classroom.js';
@@ -400,6 +401,9 @@ export class TeacherSystem extends createSystem({}) {
   }
 
   update(delta: number): void {
+    // headset menu open or headset off: she waits too
+    const vis = this.world.visibilityState.peek();
+    if (vis !== VisibilityState.Visible && vis !== VisibilityState.NonImmersive) return;
     // clamp so a tab switch (huge delta) cannot teleport her across the room
     const dt = Math.min(delta, 0.1);
     this.clock += dt;
